@@ -340,6 +340,15 @@ class RosterStorage {
   static Stream<List<Employee>> watchRoster(String rosterName) {
     // FORCE LOCAL MODE - skip Firebase entirely for performance
     print('🔍 watchRoster called for: $rosterName');
+    
+    // For web deployment, always create a fresh stream to avoid stale state
+    final existing = _rosterCtrls[rosterName];
+    if (existing != null && !existing.isClosed) {
+      print('🔍 Disposing existing stream for fresh deployment');
+      existing.close();
+      _rosterCtrls.remove(rosterName);
+    }
+    
     _seedRosterStreamOnce(rosterName);
     
     return _rosterCtrls[rosterName]!.stream;

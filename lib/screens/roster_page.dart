@@ -258,9 +258,34 @@ class _RosterPageState extends State<RosterPage> {
           // Roster Table
           Expanded(
             child: StreamBuilder<List<Employee>>(
-              stream: RosterStorage.watchRoster(widget.rosterName),
+              stream: RosterStorage.watchRoster(widget.rosterName).timeout(
+                Duration(seconds: 10),
+                onTimeout: (sink) {
+                  print('⚠️ Stream timeout - loading empty roster');
+                  sink.add([]);
+                },
+              ),
               builder: (context, snapshot) {
                 print('🔍 StreamBuilder state - hasData: ${snapshot.hasData}, hasError: ${snapshot.hasError}, connectionState: ${snapshot.connectionState}');
+                
+                if (snapshot.hasError) {
+                  print('❌ StreamBuilder error: ${snapshot.error}');
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.error, size: 64, color: Colors.red),
+                        SizedBox(height: 16),
+                        Text('Error loading roster: ${snapshot.error}'),
+                        SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () => setState(() {}),
+                          child: Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
                 
                 if (snapshot.hasData) {
                   final currentEmployees = snapshot.data!;
@@ -291,12 +316,26 @@ class _RosterPageState extends State<RosterPage> {
                     holidayBgColor: holidayBgColor,
                   );
                 }
-                if (snapshot.hasError) {
-                  print('❌ StreamBuilder error: ${snapshot.error}');
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
+                
                 print('🔍 StreamBuilder showing loading spinner...');
-                return const Center(child: CircularProgressIndicator());
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('Loading roster...'),
+                      SizedBox(height: 16),
+                      TextButton(
+                        onPressed: () {
+                          print('🔄 User requested reload');
+                          setState(() {});
+                        },
+                        child: Text('Taking too long? Click to reload'),
+                      ),
+                    ],
+                  ),
+                );
               },
             ),
           ),
