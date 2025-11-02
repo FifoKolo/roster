@@ -5,6 +5,54 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/employee_model.dart';
 
+/// Represents a roster that has been moved to trash
+class TrashItem {
+  final String trashKey;
+  final String originalName;
+  final DateTime deletedAt;
+  final String rosterData;
+  final String? styleData;
+  
+  const TrashItem({
+    required this.trashKey,
+    required this.originalName,
+    required this.deletedAt,
+    required this.rosterData,
+    this.styleData,
+  });
+  
+  /// Get a display name for the trash item
+  String get displayName {
+    final daysSince = DateTime.now().difference(deletedAt).inDays;
+    if (daysSince == 0) {
+      return '$originalName (deleted today)';
+    } else if (daysSince == 1) {
+      return '$originalName (deleted yesterday)';
+    } else {
+      return '$originalName (deleted $daysSince days ago)';
+    }
+  }
+  
+  /// Format deletion date for display
+  String get formattedDeleteDate {
+    final now = DateTime.now();
+    final difference = now.difference(deletedAt);
+    
+    if (difference.inDays == 0) {
+      if (difference.inHours == 0) {
+        return '${difference.inMinutes} minutes ago';
+      }
+      return '${difference.inHours} hours ago';
+    } else if (difference.inDays == 1) {
+      return 'Yesterday';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} days ago';
+    } else {
+      return '${deletedAt.day}/${deletedAt.month}/${deletedAt.year}';
+    }
+  }
+}
+
 class RosterStorage {
   // Local-only mode - no cloud configuration needed
 
@@ -26,7 +74,7 @@ class RosterStorage {
     final existing = _rosterCtrls[rosterName];
     if (existing != null && !existing.isClosed) {
       print('✅ Stream controller already exists and is open');
-      return;
+      return; // Don't refresh data here - causes infinite loop
     }
     print('🔍 Creating new stream controller...');
     final ctrl = StreamController<List<Employee>>.broadcast();
@@ -107,7 +155,51 @@ class RosterStorage {
   }
 
   static Future<void> deleteRoster(String rosterName) async {
-    // FORCE LOCAL MODE - skip Firebase entirely for performance
+    // Move to trash instead of permanent deletion
+    await moveRosterToTrash(rosterName);
+  }
+
+  /// Move a roster to trash (soft delete)
+  static Future<void> moveRosterToTrash(String rosterName) async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Get roster data before moving to trash
+    final rosterData = prefs.getString('roster_$rosterName');
+    final styleData = prefs.getString('style_$rosterName');
+    
+    if (rosterData != null) {
+      // Store in trash with timestamp
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final trashKey = 'trash_${timestamp}_$rosterName';
+      
+      final trashItem = {
+        'originalName': rosterName,
+        'deletedAt': timestamp,
+        'rosterData': rosterData,
+        'styleData': styleData,
+      };
+      
+      await prefs.setString(trashKey, jsonEncode(trashItem));
+      
+      // Add to trash names list
+      final trashNames = await _loadTrashRosterNames();
+      trashNames.add(trashKey);
+      await _saveTrashRosterNames(trashNames);
+    }
+    
+    // Remove from active rosters
+    await prefs.remove('roster_$rosterName');
+    await prefs.remove('style_$rosterName');
+    final names = await _loadLocalRosterNames();
+    names.remove(rosterName);
+    await _saveLocalRosterNames(names);
+
+    final ctrl = _rosterCtrls[rosterName];
+    ctrl?.add(const <Employee>[]);
+  }
+
+  /// Permanently delete a roster (bypass trash)
+  static Future<void> permanentlyDeleteRoster(String rosterName) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('roster_$rosterName');
     await prefs.remove('style_$rosterName');
@@ -117,16 +209,131 @@ class RosterStorage {
 
     final ctrl = _rosterCtrls[rosterName];
     ctrl?.add(const <Employee>[]);
+  }
+
+  /// Get list of deleted rosters
+  static Future<List<TrashItem>> getDeletedRosters() async {
+    final trashNames = await _loadTrashRosterNames();
+    final prefs = await SharedPreferences.getInstance();
+    final trashItems = <TrashItem>[];
     
-    // Disabled Firebase code:
-    // if (_useCloud && _uid != null) {
-    //   try {
-    //     await _rosterDoc(rosterName).delete();
-    //     return;
-    //   } catch (_) {
-    //     // Fall through to local on error
-    //   }
-    // }
+    for (final trashKey in trashNames) {
+      final trashDataJson = prefs.getString(trashKey);
+      if (trashDataJson != null) {
+        try {
+          final trashData = jsonDecode(trashDataJson) as Map<String, dynamic>;
+          trashItems.add(TrashItem(
+            trashKey: trashKey,
+            originalName: trashData['originalName'] as String,
+            deletedAt: DateTime.fromMillisecondsSinceEpoch(trashData['deletedAt'] as int),
+            rosterData: trashData['rosterData'] as String,
+            styleData: trashData['styleData'] as String?,
+          ));
+        } catch (e) {
+          print('Error loading trash item $trashKey: $e');
+        }
+      }
+    }
+    
+    // Sort by deletion date (newest first)
+    trashItems.sort((a, b) => b.deletedAt.compareTo(a.deletedAt));
+    return trashItems;
+  }
+
+  /// Restore a roster from trash
+  static Future<void> restoreRoster(TrashItem trashItem, {String? newName}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final restoreName = newName ?? trashItem.originalName;
+    
+    // Check if name already exists
+    final existingNames = await _loadLocalRosterNames();
+    if (existingNames.contains(restoreName)) {
+      throw Exception('A roster with the name "$restoreName" already exists');
+    }
+    
+    // Restore roster data
+    await prefs.setString('roster_$restoreName', trashItem.rosterData);
+    if (trashItem.styleData != null) {
+      await prefs.setString('style_$restoreName', trashItem.styleData!);
+    }
+    
+    // Add to active roster names
+    existingNames.add(restoreName);
+    existingNames.sort();
+    await _saveLocalRosterNames(existingNames);
+    
+    // Remove from trash
+    await prefs.remove(trashItem.trashKey);
+    final trashNames = await _loadTrashRosterNames();
+    trashNames.remove(trashItem.trashKey);
+    await _saveTrashRosterNames(trashNames);
+  }
+
+  /// Permanently delete a roster from trash
+  static Future<void> permanentlyDeleteFromTrash(TrashItem trashItem) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(trashItem.trashKey);
+    final trashNames = await _loadTrashRosterNames();
+    trashNames.remove(trashItem.trashKey);
+    await _saveTrashRosterNames(trashNames);
+  }
+
+  /// Empty trash (permanently delete all trashed rosters)
+  static Future<void> emptyTrash() async {
+    final trashNames = await _loadTrashRosterNames();
+    final prefs = await SharedPreferences.getInstance();
+    
+    for (final trashKey in trashNames) {
+      await prefs.remove(trashKey);
+    }
+    
+    await _saveTrashRosterNames([]);
+  }
+
+  static Future<List<String>> _loadTrashRosterNames() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList('trash_roster_names') ?? <String>[];
+  }
+
+  static Future<void> _saveTrashRosterNames(List<String> names) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('trash_roster_names', names);
+  }
+
+  /// Copy an existing roster to create a new one with the same employees and shifts
+  static Future<void> copyRoster(String sourceRosterName, String newRosterName) async {
+    print('🔍 copyRoster: Copying $sourceRosterName to $newRosterName');
+    
+    // Load the source roster data
+    final sourceEmployees = await loadRoster(sourceRosterName);
+    print('✅ Loaded ${sourceEmployees.length} employees from source roster');
+    
+    // Create deep copies of employees with same shifts but reset accumulated hours
+    final copiedEmployees = sourceEmployees.map((emp) => Employee(
+      name: emp.name,
+      shifts: Map<String, Shift>.from(emp.shifts), // Deep copy shifts
+      employeeColor: emp.employeeColor,
+      accumulatedWorkedHours: 0.0, // Reset accumulated hours for new roster
+      accumulatedTotalHours: 0.0,
+    )).toList();
+    
+    print('✅ Created ${copiedEmployees.length} copied employees');
+    
+    // Create the new roster
+    await createRoster(newRosterName, copiedEmployees);
+    
+    // Copy style settings if they exist
+    try {
+      final sourceStyle = await loadStyle(sourceRosterName);
+      if (sourceStyle != null) {
+        await saveStyle(newRosterName, sourceStyle);
+        print('✅ Copied style settings');
+      }
+    } catch (e) {
+      print('⚠️ Could not copy style settings: $e');
+    }
+    
+    print('✅ Successfully copied roster $sourceRosterName to $newRosterName');
   }
 
   /// Stream roster employees for live multi-device sync
@@ -135,14 +342,7 @@ class RosterStorage {
     print('🔍 watchRoster called for: $rosterName');
     _seedRosterStreamOnce(rosterName);
     
-    // Ensure data is available immediately by re-adding current data
-    final ctrl = _rosterCtrls[rosterName]!;
-    loadRoster(rosterName).then((employees) {
-      print('🔍 Re-seeding stream with ${employees.length} employees for immediate access');
-      if (!ctrl.isClosed) ctrl.add(employees);
-    });
-    
-    return ctrl.stream;
+    return _rosterCtrls[rosterName]!.stream;
     
     // Disabled Firebase code:
     // if (_useCloud && _uid != null) {
@@ -226,11 +426,14 @@ class RosterStorage {
     final encoded = jsonEncode(employees.map((e) => e.toJson()).toList());
     await prefs.setString('roster_$rosterName', encoded);
 
-    // Push to local stream
-    _seedRosterStreamOnce(rosterName);
+    // Update the stream directly with the data we just saved
     final ctrl = _rosterCtrls[rosterName];
     if (ctrl != null && !ctrl.isClosed) {
       ctrl.add(List<Employee>.from(employees));
+      print('🔍 Updated stream directly with ${employees.length} employees');
+    } else {
+      // Create stream if it doesn't exist
+      _seedRosterStreamOnce(rosterName);
     }
   }
 
@@ -277,14 +480,14 @@ class RosterStorage {
     // }
   }
 
-  // ---- Compute total holiday hours for a roster (cloud-aware) ----
+  // ---- Compute total hours for a roster (cloud-aware) ----
 
-  static Future<double> getTotalHolidayHours(String rosterName) async {
+  static Future<double> getTotalHours(String rosterName) async {
     // FORCE LOCAL MODE - skip Firebase entirely for performance
     final emps = await _loadLocalRoster(rosterName);
     double total = 0.0;
     for (final e in emps) {
-      total += e.totalHolidayThisRoster;
+      total += e.totalHours;
     }
     return total;
     

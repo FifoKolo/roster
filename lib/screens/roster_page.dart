@@ -4,6 +4,7 @@ import '../services/pdf_service.dart';
 import '../widgets/add_shift_dialog.dart';
 import '../widgets/roster_table.dart';
 import '../services/roster_storage.dart';
+import '../services/irish_bank_holidays.dart';
 
 
 class RosterPage extends StatefulWidget {
@@ -62,10 +63,25 @@ class _RosterPageState extends State<RosterPage> {
   Color? _c(Object? v) => (v is int) ? Color(v) : null;
 
   void _initWeekDates() {
+    // This will be updated when roster data is loaded
+    // Default to current week for now
     final now = DateTime.now();
     final monday = now.subtract(Duration(days: now.weekday - 1));
     for (int i = 0; i < 7; i++) {
       weekDates[_dayName(i)] = monday.add(Duration(days: i));
+    }
+  }
+
+  void _updateWeekDatesFromRoster(List<Employee> employees) {
+    // Get the week dates from the first employee (all should have the same dates)
+    if (employees.isNotEmpty && 
+        employees.first.rosterStartDate != null && 
+        employees.first.rosterEndDate != null) {
+      final monday = employees.first.rosterStartDate!;
+      for (int i = 0; i < 7; i++) {
+        weekDates[_dayName(i)] = monday.add(Duration(days: i));
+      }
+      // setState() is now handled by the caller when needed
     }
   }
 
@@ -75,7 +91,25 @@ class _RosterPageState extends State<RosterPage> {
   }
 
   Future<void> _saveRoster(List<Employee> employees) async {
+    print('🔍 _saveRoster called with ${employees.length} employees');
+    
+    // Debug: Print each employee's current hours and holiday calculations
+    for (final emp in employees) {
+      print('🔍 Employee ${emp.name}:');
+      print('  - totalWorkedHours = ${emp.totalWorkedHours}');
+      print('  - totalPaidHours = ${emp.totalPaidHours}');
+      print('  - holidayHoursEarnedThisWeek = ${emp.holidayHoursEarnedThisWeek}');
+      print('  - totalHolidayHoursUsed = ${emp.totalHolidayHoursUsed}');
+      print('  - accumulatedHolidayHours = ${emp.accumulatedHolidayHours}');
+      print('  - remainingAccumulatedHolidayHours = ${emp.remainingAccumulatedHolidayHours}');
+      for (final entry in emp.shifts.entries) {
+        final shift = entry.value;
+        print('  - ${entry.key}: ${shift.formatted()} (${shift.duration} hours) isHoliday: ${shift.isHoliday}');
+      }
+    }
+    
     await RosterStorage.saveRoster(widget.rosterName, employees);
+    print('✅ Roster saved successfully');
   }
 
   Future<void> _exportPublicPdf(List<Employee> employees) async {
@@ -139,45 +173,239 @@ class _RosterPageState extends State<RosterPage> {
         onPressed: () async {
           final result = await _showAddEmployeeDialog(context);
           final name = result?.$1 ?? '';
-          final customHoliday = result?.$2 ?? 0.0;
           if (name.isNotEmpty) {
             setState(() {
-              employees.add(Employee(name: name, manualHolidayHours: customHoliday));
+              employees.add(Employee(name: name));
             });
             await _saveRoster(employees); // persist after add
           }
         },
         child: const Icon(Icons.add),
       ),
-      body: StreamBuilder<List<Employee>>(
-        stream: RosterStorage.watchRoster(widget.rosterName),
-        builder: (context, snapshot) {
-          print('🔍 StreamBuilder state - hasData: ${snapshot.hasData}, hasError: ${snapshot.hasError}, connectionState: ${snapshot.connectionState}');
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // NEW: Week Date Display
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.blue.shade50, Colors.indigo.shade50],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.blue.shade200),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.blue.shade100,
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(Icons.calendar_today, color: Colors.blue.shade700, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Week Period',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.blue.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '${_formatDate(weekDates['Mon'] ?? DateTime.now())} - ${_formatDate(weekDates['Sun'] ?? DateTime.now())}',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue.shade800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _getWeekDescription(weekDates['Mon'] ?? DateTime.now()),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.blue.shade600,
+                  ),
+                ),
+                
+                // Bank holidays in this week
+                ..._buildBankHolidayInfo(),
+              ],
+            ),
+          ),
           
-          if (snapshot.hasData) {
-            employees = snapshot.data!;
-            print('✅ StreamBuilder received ${employees.length} employees');
-            return RosterTable(
-              employees: employees,
-              weekDates: weekDates,
-              onEdit: _openEditDialog,
-              onRosterChanged: (list) => _saveRoster(list),
-              headerColor: headerColor,
-              headerTextColor: headerTextColor,
-              cellBorderColor: cellBorderColor,
-              dayOffBgColor: dayOffBgColor,
-              holidayBgColor: holidayBgColor,
-            );
-          }
-          if (snapshot.hasError) {
-            print('❌ StreamBuilder error: ${snapshot.error}');
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          print('🔍 StreamBuilder showing loading spinner...');
-          return const Center(child: CircularProgressIndicator());
-        },
+          // Roster Table
+          Expanded(
+            child: StreamBuilder<List<Employee>>(
+              stream: RosterStorage.watchRoster(widget.rosterName),
+              builder: (context, snapshot) {
+                print('🔍 StreamBuilder state - hasData: ${snapshot.hasData}, hasError: ${snapshot.hasError}, connectionState: ${snapshot.connectionState}');
+                
+                if (snapshot.hasData) {
+                  final currentEmployees = snapshot.data!;
+                  
+                  // Only update if the data has actually changed to prevent infinite loops
+                  if (employees.length != currentEmployees.length || 
+                      employees != currentEmployees) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) {
+                        setState(() {
+                          employees = currentEmployees;
+                          _updateWeekDatesFromRoster(currentEmployees);
+                        });
+                      }
+                    });
+                  }
+                  
+                  print('✅ StreamBuilder received ${currentEmployees.length} employees');
+                  return RosterTable(
+                    employees: currentEmployees,
+                    weekDates: weekDates,
+                    onEdit: _openEditDialog,
+                    onRosterChanged: (list) => _saveRoster(list),
+                    headerColor: headerColor,
+                    headerTextColor: headerTextColor,
+                    cellBorderColor: cellBorderColor,
+                    dayOffBgColor: dayOffBgColor,
+                    holidayBgColor: holidayBgColor,
+                  );
+                }
+                if (snapshot.hasError) {
+                  print('❌ StreamBuilder error: ${snapshot.error}');
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
+                print('🔍 StreamBuilder showing loading spinner...');
+                return const Center(child: CircularProgressIndicator());
+              },
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  String _getWeekDescription(DateTime monday) {
+    final now = DateTime.now();
+    final currentMonday = now.subtract(Duration(days: now.weekday - 1));
+    
+    final diffDays = monday.difference(currentMonday).inDays;
+    
+    if (diffDays == 0) {
+      return 'This Week';
+    } else if (diffDays == 7) {
+      return 'Next Week';
+    } else if (diffDays > 0) {
+      final weeks = (diffDays / 7).round();
+      return '$weeks ${weeks == 1 ? 'week' : 'weeks'} ahead';
+    } else {
+      final weeks = (diffDays.abs() / 7).round();
+      return '$weeks ${weeks == 1 ? 'week' : 'weeks'} ago';
+    }
+  }
+
+  List<Widget> _buildBankHolidayInfo() {
+    final startDate = weekDates['Mon'];
+    final endDate = weekDates['Sun'];
+    
+    if (startDate == null || endDate == null) return [];
+    
+    // Get bank holidays in this week
+    final bankHolidays = IrishBankHolidays.getHolidaysInRange(startDate, endDate);
+    
+    if (bankHolidays.isEmpty) return [];
+    
+    return [
+      const SizedBox(height: 12),
+      Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.red.shade50, Colors.orange.shade50],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.red.shade200),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade100,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Icon(Icons.event, color: Colors.red.shade700, size: 16),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Bank ${bankHolidays.length == 1 ? 'Holiday' : 'Holidays'} This Week',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.red.shade700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...bankHolidays.map((holiday) {
+              final style = IrishBankHolidays.getHolidayStyle(holiday);
+              const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+              final dayName = dayNames[holiday.date.weekday - 1];
+              
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(style.icon, size: 14, color: style.textColor),
+                    const SizedBox(width: 6),
+                    Text(
+                      '$dayName: ${holiday.name}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: style.textColor,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ],
+        ),
+      ),
+    ];
   }
 
   // NEW: appearance customization dialog

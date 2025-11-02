@@ -21,6 +21,7 @@ class Shift {
   final String? comment; // NEW: optional comment
   final bool isHoliday;
   final Color? customColor; // <- optional custom cell color
+  final double? customHolidayHours; // NEW: custom hours deducted for this holiday
 
   Shift({
     this.startTime,
@@ -29,6 +30,7 @@ class Shift {
     this.comment, // NEW
     this.isHoliday = false,
     this.customColor, // <- new
+    this.customHolidayHours, // NEW: defaults to null (uses 8 hours)
   });
 
   double get duration {
@@ -58,6 +60,7 @@ class Shift {
         'comment': comment, // NEW
         'isHoliday': isHoliday,
         'color': customColor?.value, // ARGB int
+        'customHolidayHours': customHolidayHours, // NEW
       };
 
   static Shift fromJson(Map<String, dynamic> json) => Shift(
@@ -67,6 +70,7 @@ class Shift {
         comment: json['comment'] as String?, // NEW
         isHoliday: (json['isHoliday'] as bool?) ?? false,
         customColor: (json['color'] is int) ? Color(json['color'] as int) : null,
+        customHolidayHours: json['customHolidayHours'] as double?, // NEW
       );
 }
 
@@ -74,62 +78,192 @@ class Employee {
   final String name;
   final Map<String, Shift> shifts;
 
-  // New holiday fields
-  double manualHolidayHours;      // user-entered per roster
-  double carryOverHolidayHours;   // accumulated from previous roster
-
   // NEW: Accumulated totals across all saved weeks (for management tracking)
   double accumulatedWorkedHours;  // total worked hours across all weeks
-  double accumulatedHolidayHours; // total holiday hours across all weeks
+  double accumulatedTotalHours;   // total hours including breaks across all weeks
+
+  // NEW: Accumulated holiday hours tracking
+  double accumulatedHolidayHours; // total holiday hours available
 
   // NEW: per-employee color (used for name cell / default shift color)
   Color? employeeColor;
 
+  // NEW: Week date tracking for this roster
+  DateTime? rosterStartDate;  // Monday of the roster week
+  DateTime? rosterEndDate;    // Sunday of the roster week
+
   Employee({
     required this.name,
     Map<String, Shift>? shifts,
-    this.manualHolidayHours = 0.0,
-    this.carryOverHolidayHours = 0.0,
     this.accumulatedWorkedHours = 0.0,
+    this.accumulatedTotalHours = 0.0,
     this.accumulatedHolidayHours = 0.0,
     this.employeeColor,
+    this.rosterStartDate,
+    this.rosterEndDate,
   }) : shifts = shifts ?? {};
 
   double get totalWorkedHours {
     return shifts.values.fold(0, (sum, shift) => sum + shift.duration);
   }
 
+  // Calculate break time based on hours worked (time deducted PER SHIFT for unpaid breaks)
+  double get breakHours {
+    double totalBreaks = 0.0;
+    
+    // Calculate breaks for EACH individual shift
+    for (final shift in shifts.values) {
+      final shiftHours = shift.duration;
+      if (shiftHours >= 6.0) {
+        totalBreaks += 0.5; // 30 minutes deducted per 6+ hour shift
+      } else if (shiftHours >= 4.5) {
+        totalBreaks += 0.25; // 15 minutes deducted per 4.5+ hour shift
+      }
+    }
+    
+    return totalBreaks;
+  }
+
+  // Total scheduled hours (what appears on public schedule - no break deductions shown)
+  double get totalScheduledHours {
+    return totalWorkedHours; // Raw scheduled time for public viewing
+  }
+
+  // Total paid hours (scheduled hours MINUS unpaid breaks - for management/payroll)
+  double get totalPaidHours {
+    return totalWorkedHours - breakHours;
+  }
+
+  // Calculate total holiday hours used in this roster (8 hours per holiday by default, or custom)
+  double get totalHolidayHoursUsed {
+    double holidayHours = 0.0;
+    for (final shift in shifts.values) {
+      if (shift.isHoliday) {
+        holidayHours += shift.customHolidayHours ?? 8.0; // Use custom hours or default 8
+      }
+    }
+    return holidayHours;
+  }
+
+  // Calculate remaining accumulated holiday hours after this roster
+  double get remainingAccumulatedHolidayHours {
+    // Calculate holiday hours earned this week (8% of worked hours)
+    final holidayEarnedThisWeek = totalPaidHours * 0.08;
+    
+    // Calculate total available = accumulated + earned this week
+    final totalAvailable = accumulatedHolidayHours + holidayEarnedThisWeek;
+    
+    // Subtract holiday hours used this week
+    return totalAvailable - totalHolidayHoursUsed;
+  }
+
+  // Get holiday hours earned this week (8% of paid hours)
+  double get holidayHoursEarnedThisWeek {
+    return totalPaidHours * 0.08;
+  }
+
+  // Separate Mon-Sat vs Sunday hours (PAID hours after break deductions)
+  double get totalMondayToSaturdayPaidHours {
+    final weekdayShifts = shifts.entries.where((entry) {
+      // Use abbreviated day names that match the UI: Mon, Tue, Wed, Thu, Fri, Sat
+      final weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      return weekdays.contains(entry.key);
+    });
+    
+    double totalPaid = 0.0;
+    
+    // Calculate paid hours for each weekday shift (scheduled - breaks)
+    for (final entry in weekdayShifts) {
+      final workedHours = entry.value.duration;
+      double shiftBreaks = 0.0;
+      
+      // Calculate breaks per shift (deducted time)
+      if (workedHours >= 6.0) {
+        shiftBreaks = 0.5; // 30 minutes deducted
+      } else if (workedHours >= 4.5) {
+        shiftBreaks = 0.25; // 15 minutes deducted
+      }
+      
+      totalPaid += workedHours - shiftBreaks; // SUBTRACT breaks
+    }
+    
+    return totalPaid;
+  }
+
+  double get totalSundayPaidHours {
+    final sundayShift = shifts['Sun']; // Use 'Sun' not 'Sunday'
+    if (sundayShift == null) return 0.0;
+    
+    final workedHours = sundayShift.duration;
+    
+    // Calculate breaks for Sunday shift (deducted time)
+    double sundayBreaks = 0.0;
+    if (workedHours >= 6.0) {
+      sundayBreaks = 0.5; // 30 minutes deducted
+    } else if (workedHours >= 4.5) {
+      sundayBreaks = 0.25; // 15 minutes deducted
+    }
+    
+    return workedHours - sundayBreaks; // SUBTRACT breaks
+  }
+
+  // For backward compatibility - now returns paid hours (after break deductions)
+  double get totalHours {
+    return totalPaidHours;
+  }
+
+  // Keep old method names for compatibility but redirect to new logic
+  double get totalMondayToSaturdayHours {
+    return totalMondayToSaturdayPaidHours;
+  }
+
+  double get totalSundayHours {
+    return totalSundayPaidHours;
+  }
+
+  // Additional getters for detailed breakdown
+  double get mondayToSaturdayWorkedHours {
+    final weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    final weekdayShifts = shifts.entries.where((entry) => weekdays.contains(entry.key));
+    return weekdayShifts.fold(0.0, (sum, entry) => sum + entry.value.duration);
+  }
+
+  double get mondayToSaturdayBreakHours {
+    final weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    final weekdayShifts = shifts.entries.where((entry) => weekdays.contains(entry.key));
+    
+    double totalBreaks = 0.0;
+    for (final entry in weekdayShifts) {
+      final workedHours = entry.value.duration;
+      if (workedHours >= 6.0) {
+        totalBreaks += 0.5;
+      } else if (workedHours >= 4.5) {
+        totalBreaks += 0.25;
+      }
+    }
+    return totalBreaks;
+  }
+
+  double get sundayWorkedHours {
+    final sundayShift = shifts['Sun']; // Use 'Sun' not 'Sunday'
+    return sundayShift?.duration ?? 0.0;
+  }
+
+  double get sundayBreakHours {
+    final sundayShift = shifts['Sun']; // Use 'Sun' not 'Sunday'
+    if (sundayShift == null) return 0.0;
+    
+    final workedHours = sundayShift.duration;
+    if (workedHours >= 6.0) {
+      return 0.5;
+    } else if (workedHours >= 4.5) {
+      return 0.25;
+    }
+    return 0.0;
+  }
+
   // Alias for PDF compatibility
   double get totalWorkedThisRoster => totalWorkedHours;
-
-  // Weekly auto holiday hours (8% of worked)
-  double get holidayHours {
-    // Count holiday days taken this roster (8 hours per holiday day)
-    final holidayDaysTaken = shifts.values.where((shift) => shift.isHoliday).length;
-    final holidayHoursUsed = holidayDaysTaken * 8.0;
-    
-    // Calculate earned holiday hours (8% of worked hours)
-    final earnedHolidayHours = totalWorkedHours * 0.08;
-    
-    // Return net holiday hours (earned minus used)
-    return earnedHolidayHours - holidayHoursUsed;
-  }
-
-  // Helper getter: hours used for holidays this roster
-  double get holidayHoursUsedThisRoster {
-    final holidayDaysTaken = shifts.values.where((shift) => shift.isHoliday).length;
-    return holidayDaysTaken * 8.0;
-  }
-
-  // Helper getter: hours earned from work this roster  
-  double get holidayHoursEarnedThisRoster {
-    return totalWorkedHours * 0.08;
-  }
-
-  // Total holiday represented in this roster (carry-over + manual + auto)
-  double get totalHolidayThisRoster {
-    return carryOverHolidayHours + manualHolidayHours + holidayHours;
-  }
 
   // For API compatibility with callers; getters compute on demand.
   void calculateHours() {
@@ -139,11 +273,12 @@ class Employee {
   Map<String, dynamic> toJson() => {
     'name': name,
     'shifts': shifts.map((day, shift) => MapEntry(day, shift.toJson())),
-    'manualHolidayHours': manualHolidayHours,
-    'carryOverHolidayHours': carryOverHolidayHours,
     'accumulatedWorkedHours': accumulatedWorkedHours,
+    'accumulatedTotalHours': accumulatedTotalHours,
     'accumulatedHolidayHours': accumulatedHolidayHours,
     'employeeColor': employeeColor?.value, // <- persist ARGB
+    'rosterStartDate': rosterStartDate?.millisecondsSinceEpoch,
+    'rosterEndDate': rosterEndDate?.millisecondsSinceEpoch,
   };
 
   static Employee fromJson(Map<String, dynamic> json) => Employee(
@@ -160,11 +295,12 @@ class Employee {
       }
       return <String, Shift>{};
     })(),
-    manualHolidayHours: _toDouble(json['manualHolidayHours']),
-    carryOverHolidayHours: _toDouble(json['carryOverHolidayHours']),
     accumulatedWorkedHours: _toDouble(json['accumulatedWorkedHours']),
+    accumulatedTotalHours: _toDouble(json['accumulatedTotalHours']),
     accumulatedHolidayHours: _toDouble(json['accumulatedHolidayHours']),
     employeeColor: (json['employeeColor'] is int) ? Color(json['employeeColor'] as int) : null,
+    rosterStartDate: json['rosterStartDate'] != null ? DateTime.fromMillisecondsSinceEpoch(json['rosterStartDate'] as int) : null,
+    rosterEndDate: json['rosterEndDate'] != null ? DateTime.fromMillisecondsSinceEpoch(json['rosterEndDate'] as int) : null,
   );
 }
 

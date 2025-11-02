@@ -11,38 +11,103 @@ class AddShiftDialog extends StatefulWidget {
 }
 
 class _AddShiftDialogState extends State<AddShiftDialog> {
-  late TimeOfDay? startTime;
-  late TimeOfDay? endTime;
-  late String? role;
-  late bool isHoliday;
+  TimeOfDay? startTime;
+  TimeOfDay? endTime;
+  bool isHoliday = false;
+  late TextEditingController roleController;
+  late TextEditingController commentController;
+  late TextEditingController startTimeController;
+  late TextEditingController endTimeController;
+  late TextEditingController holidayHoursController;
   Color? selectedColor;
+  bool use24HourFormat = true; // Default to 24-hour format
 
-  // Controllers to prefill and validate inputs
-  late final TextEditingController roleController;
-  late final TextEditingController commentController;
-
-  @override
-  void initState() {
-    super.initState();
-    startTime = widget.shift?.startTime;
-    endTime = widget.shift?.endTime;
-    role = widget.shift?.role;
-    isHoliday = widget.shift?.isHoliday ?? false;
-    selectedColor = widget.shift?.customColor;
-
-    roleController = TextEditingController(text: widget.shift?.role ?? '');
-    // If Shift has a comment field, prefill it; otherwise this remains empty.
-    commentController = TextEditingController(text: widget.shift?.comment ?? '');
-
-    // Update UI validation state when text changes
-    roleController.addListener(() => setState(() {}));
+  String _calculateDuration(TimeOfDay start, TimeOfDay end) {
+    double startHours = start.hour + start.minute / 60;
+    double endHours = end.hour + end.minute / 60;
+    
+    // Handle shifts that go past midnight
+    if (endHours < startHours) {
+      endHours += 24;
+    }
+    
+    double duration = endHours - startHours;
+    return duration.toStringAsFixed(1);
   }
 
-  @override
-  void dispose() {
-    roleController.dispose();
-    commentController.dispose();
-    super.dispose();
+  String _formatTimeForDisplay(TimeOfDay? time) {
+    if (time == null) return '';
+    
+    if (use24HourFormat) {
+      return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+    } else {
+      final hour12 = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
+      final period = time.period == DayPeriod.am ? 'AM' : 'PM';
+      return '${hour12.toString()}:${time.minute.toString().padLeft(2, '0')} $period';
+    }
+  }
+
+  TimeOfDay? _parseTimeInput(String input) {
+    if (input.trim().isEmpty) return null;
+    
+    try {
+      // Remove any spaces
+      input = input.trim();
+      
+      // Check if it's 12-hour format (contains AM/PM)
+      bool isAMPM = input.toUpperCase().contains('AM') || input.toUpperCase().contains('PM');
+      
+      if (isAMPM) {
+        // Parse 12-hour format
+        final isPM = input.toUpperCase().contains('PM');
+        final timeStr = input.toUpperCase().replaceAll(RegExp(r'[AP]M'), '').trim();
+        final parts = timeStr.split(':');
+        
+        if (parts.length != 2) return null;
+        
+        int hour = int.parse(parts[0]);
+        int minute = int.parse(parts[1]);
+        
+        // Convert to 24-hour format
+        if (isPM && hour != 12) {
+          hour += 12;
+        } else if (!isPM && hour == 12) {
+          hour = 0;
+        }
+        
+        if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
+          return TimeOfDay(hour: hour, minute: minute);
+        }
+      } else {
+        // Parse 24-hour format or simple format
+        final parts = input.split(':');
+        if (parts.length != 2) return null;
+        
+        int hour = int.parse(parts[0]);
+        int minute = int.parse(parts[1]);
+        
+        if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
+          return TimeOfDay(hour: hour, minute: minute);
+        }
+      }
+    } catch (e) {
+      return null;
+    }
+    
+    return null;
+  }
+
+  void _updateTimeFromInput(String input, bool isStartTime) {
+    final time = _parseTimeInput(input);
+    if (time != null) {
+      setState(() {
+        if (isStartTime) {
+          startTime = time;
+        } else {
+          endTime = time;
+        }
+      });
+    }
   }
 
   bool _isStartBeforeEnd(TimeOfDay a, TimeOfDay b) {
@@ -52,80 +117,501 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    startTime = widget.shift?.startTime;
+    endTime = widget.shift?.endTime;
+    isHoliday = widget.shift?.isHoliday ?? false;
+    selectedColor = widget.shift?.customColor;
+
+    roleController = TextEditingController(text: widget.shift?.role ?? '');
+    commentController = TextEditingController(text: widget.shift?.comment ?? '');
+    startTimeController = TextEditingController(text: _formatTimeForDisplay(startTime));
+    endTimeController = TextEditingController(text: _formatTimeForDisplay(endTime));
+    holidayHoursController = TextEditingController(text: widget.shift?.customHolidayHours?.toString() ?? '8.0');
+
+    // Update UI validation state when text changes
+    roleController.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    roleController.dispose();
+    commentController.dispose();
+    startTimeController.dispose();
+    endTimeController.dispose();
+    holidayHoursController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final canSave = isHoliday ||
-        ((roleController.text.trim().isNotEmpty) &&
-            startTime != null &&
+        (startTime != null &&
             endTime != null &&
             _isStartBeforeEnd(startTime!, endTime!));
 
     return AlertDialog(
-      title: const Text('Add/Edit Shift'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SwitchListTile(
-            title: const Text('Holiday'),
-            value: isHoliday,
-            onChanged: (value) => setState(() => isHoliday = value),
+      backgroundColor: Colors.white,
+      elevation: 8,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      title: Container(
+        padding: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: Colors.grey.shade200, width: 1),
           ),
-          if (!isHoliday) ...[
-            TextField(
-              controller: roleController,
-              decoration: const InputDecoration(labelText: 'Role'),
-              textInputAction: TextInputAction.next,
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.access_time, color: Colors.blue.shade600),
+            const SizedBox(width: 8),
+            const Text(
+              'Add/Edit Shift',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1A1A1A),
+              ),
             ),
-            Row(
+          ],
+        ),
+      ),
+      content: Container(
+        width: 400,
+        constraints: const BoxConstraints(maxHeight: 600), // Add height constraint
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+        ),
+        child: SingleChildScrollView( // Make content scrollable
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+          // Holiday toggle with clean styling
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: TextButton(
-                    onPressed: () async {
-                      final time = await showTimePicker(
-                        context: context,
-                        initialTime: startTime ?? TimeOfDay.now(),
-                      );
-                      if (time != null) setState(() => startTime = time);
-                    },
-                    child: Text(startTime?.format(context) ?? 'Start Time'),
+                Text(
+                  'Holiday',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade800,
                   ),
                 ),
-                Expanded(
-                  child: TextButton(
-                    onPressed: () async {
-                      final time = await showTimePicker(
-                        context: context,
-                        initialTime: endTime ?? TimeOfDay.now(),
-                      );
-                      if (time != null) setState(() => endTime = time);
-                    },
-                    child: Text(endTime?.format(context) ?? 'End Time'),
-                  ),
+                Switch(
+                  value: isHoliday,
+                  onChanged: (value) => setState(() => isHoliday = value),
+                  activeThumbColor: Colors.blue.shade600,
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: commentController,
-              decoration: const InputDecoration(labelText: 'Comment (optional)'),
-              maxLines: 2,
+          ),
+          const SizedBox(height: 16),
+          if (isHoliday) ...[
+            // Holiday hours input field
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Holiday Hours',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: holidayHoursController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      hintText: '8.0',
+                      hintStyle: TextStyle(color: Colors.grey.shade400),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.blue.shade600),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                    ),
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Hours to deduct from accumulated holiday hours',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+          if (!isHoliday) ...[
+            // Role field with clean styling
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Role (Optional)',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: roleController,
+                    decoration: InputDecoration(
+                      hintText: 'e.g., Manager, Server, Cook',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                    ),
+                    textInputAction: TextInputAction.next,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Time selection with enhanced input options
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.access_time, color: Colors.grey.shade700, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Shift Times',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade800,
+                            ),
+                          ),
+                        ],
+                      ),
+                      // Format toggle
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  use24HourFormat = true;
+                                  startTimeController.text = _formatTimeForDisplay(startTime);
+                                  endTimeController.text = _formatTimeForDisplay(endTime);
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: use24HourFormat ? Colors.blue.shade600 : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Text(
+                                  '24h',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: use24HourFormat ? Colors.white : Colors.grey.shade600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  use24HourFormat = false;
+                                  startTimeController.text = _formatTimeForDisplay(startTime);
+                                  endTimeController.text = _formatTimeForDisplay(endTime);
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: !use24HourFormat ? Colors.blue.shade600 : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Text(
+                                  'AM/PM',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: !use24HourFormat ? Colors.white : Colors.grey.shade600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Start Time',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: startTimeController,
+                              decoration: InputDecoration(
+                                hintText: use24HourFormat ? '09:00' : '9:00 AM',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: Colors.grey.shade300),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
+                                ),
+                                suffixIcon: IconButton(
+                                  icon: Icon(Icons.access_time, color: Colors.grey.shade600),
+                                  onPressed: () async {
+                                    final time = await showTimePicker(
+                                      context: context,
+                                      initialTime: startTime ?? TimeOfDay.now(),
+                                    );
+                                    if (time != null) {
+                                      setState(() {
+                                        startTime = time;
+                                        startTimeController.text = _formatTimeForDisplay(time);
+                                      });
+                                    }
+                                  },
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                              ),
+                              onChanged: (value) {
+                                _updateTimeFromInput(value, true);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'End Time',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: endTimeController,
+                              decoration: InputDecoration(
+                                hintText: use24HourFormat ? '17:00' : '5:00 PM',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: Colors.grey.shade300),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
+                                ),
+                                suffixIcon: IconButton(
+                                  icon: Icon(Icons.access_time, color: Colors.grey.shade600),
+                                  onPressed: () async {
+                                    final time = await showTimePicker(
+                                      context: context,
+                                      initialTime: endTime ?? TimeOfDay.now(),
+                                    );
+                                    if (time != null) {
+                                      setState(() {
+                                        endTime = time;
+                                        endTimeController.text = _formatTimeForDisplay(time);
+                                      });
+                                    }
+                                  },
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                              ),
+                              onChanged: (value) {
+                                _updateTimeFromInput(value, false);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Format examples
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            use24HourFormat 
+                                ? 'Format: 24-hour (e.g., 09:00, 14:30, 23:45)'
+                                : 'Format: 12-hour (e.g., 9:00 AM, 2:30 PM, 11:45 PM)',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.blue.shade700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (startTime != null && endTime != null) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.schedule, size: 16, color: Colors.green.shade700),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Duration: ${_calculateDuration(startTime!, endTime!)} hours',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.green.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: selectedColor ?? Colors.transparent,
-                    border: Border.all(color: Colors.grey),
-                    borderRadius: BorderRadius.circular(4),
+            // Comment field with clean styling
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Comment (Optional)',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade700,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                TextButton.icon(
-                  icon: const Icon(Icons.color_lens_outlined),
-                  label: const Text('Pick color'),
-                  onPressed: () async {
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: commentController,
+                    decoration: InputDecoration(
+                      hintText: 'Add any notes about this shift...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                    ),
+                    maxLines: 2,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            
+            // Color picker with clean styling
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: selectedColor ?? Colors.grey.shade100,
+                      border: Border.all(color: Colors.grey.shade300, width: 2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  TextButton.icon(
+                    icon: Icon(Icons.palette, color: Colors.blue.shade600),
+                    label: Text(
+                      'Pick color',
+                      style: TextStyle(color: Colors.blue.shade600),
+                    ),
+                    onPressed: () async {
                     final c = await _pickColor(context, selectedColor);
                     if (c != null) setState(() => selectedColor = c);
                   },
@@ -133,49 +619,104 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                 if (selectedColor != null)
                   TextButton(
                     onPressed: () => setState(() => selectedColor = null),
-                    child: const Text('Clear'),
+                    child: Text(
+                      'Clear',
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
                   ),
-              ],
+                ],
+              ),
             ),
           ],
           if (!isHoliday &&
               startTime != null &&
               endTime != null &&
               !_isStartBeforeEnd(startTime!, endTime!))
-            const Padding(
-              padding: EdgeInsets.only(top: 8.0),
-              child: Text(
-                'End time must be after start time.',
-                style: TextStyle(color: Colors.red),
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning, color: Colors.red.shade700, size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      'End time must be after start time.',
+                      style: TextStyle(
+                        color: Colors.red.shade700,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-        ],
-      ),
+          ],
+        ), // Column closing
+      ), // SingleChildScrollView closing
+      ), // Container closing
       actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: canSave
-              ? () {
-                  Navigator.pop(
-                    context,
-                    Shift(
-                      startTime: isHoliday ? null : startTime,
-                      endTime: isHoliday ? null : endTime,
-                      role: isHoliday ? null : roleController.text.trim(),
-                      // If your Shift model has 'comment', this will populate it.
-                      comment: commentController.text.trim().isEmpty
-                          ? null
-                          : commentController.text.trim(),
-                      isHoliday: isHoliday,
-                      customColor: selectedColor,
-                    ),
-                  );
-                }
-              : null,
-          child: const Text('Save'),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                ),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: canSave
+                    ? () {
+                        Navigator.pop(
+                          context,
+                          Shift(
+                            startTime: isHoliday ? null : startTime,
+                            endTime: isHoliday ? null : endTime,
+                            role: isHoliday ? null : roleController.text.trim(),
+                            comment: commentController.text.trim().isEmpty
+                                ? null
+                                : commentController.text.trim(),
+                            isHoliday: isHoliday,
+                            customColor: selectedColor,
+                            customHolidayHours: isHoliday 
+                                ? (double.tryParse(holidayHoursController.text) ?? 8.0)
+                                : null,
+                          ),
+                        );
+                      }
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: canSave ? Colors.blue.shade600 : Colors.grey.shade300,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+                child: const Text(
+                  'Save',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );

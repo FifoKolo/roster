@@ -53,6 +53,7 @@ class RosterApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Roster App',
+      debugShowCheckedModeBanner: false, // Remove debug banner
       theme: ThemeData(useMaterial3: true),
       home: AuthGate(
         skipAuth: localOnly, // NEW
