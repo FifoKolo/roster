@@ -74,7 +74,18 @@ class RosterStorage {
     final existing = _rosterCtrls[rosterName];
     if (existing != null && !existing.isClosed) {
       print('✅ Stream controller already exists and is open');
-      return; // Don't refresh data here - causes infinite loop
+      // CRITICAL: Always re-emit the current data when a new listener connects
+      print('🔍 Re-loading and emitting current data for new listener...');
+      loadRoster(rosterName).then((employees) {
+        print('✅ Re-loaded ${employees.length} employees, re-emitting to stream');
+        if (!existing.isClosed) {
+          existing.add(employees);
+          print('✅ Re-emitted current data to existing stream');
+        }
+      }).catchError((error) {
+        print('❌ Error re-loading roster for stream: $error');
+      });
+      return;
     }
     print('🔍 Creating new stream controller...');
     final ctrl = StreamController<List<Employee>>.broadcast();
@@ -82,8 +93,10 @@ class RosterStorage {
     print('🔍 Loading roster data...');
     loadRoster(rosterName).then((employees) {
       print('✅ Loaded ${employees.length} employees, adding to stream');
-      if (!ctrl.isClosed) ctrl.add(employees);
-      print('✅ Added employees to stream');
+      if (!ctrl.isClosed) {
+        ctrl.add(employees);
+        print('✅ Added employees to new stream');
+      }
     }).catchError((error) {
       print('❌ Error loading roster for stream: $error');
     });
@@ -340,15 +353,6 @@ class RosterStorage {
   static Stream<List<Employee>> watchRoster(String rosterName) {
     // FORCE LOCAL MODE - skip Firebase entirely for performance
     print('🔍 watchRoster called for: $rosterName');
-    
-    // For web deployment, always create a fresh stream to avoid stale state
-    final existing = _rosterCtrls[rosterName];
-    if (existing != null && !existing.isClosed) {
-      print('🔍 Disposing existing stream for fresh deployment');
-      existing.close();
-      _rosterCtrls.remove(rosterName);
-    }
-    
     _seedRosterStreamOnce(rosterName);
     
     return _rosterCtrls[rosterName]!.stream;
@@ -390,8 +394,35 @@ class RosterStorage {
 
   /// Save roster data (cloud or local)
   static Future<void> saveRoster(String rosterName, List<Employee> employees) async {
-    // FORCE LOCAL MODE - skip Firebase entirely for performance
+    print('🔍 saveRoster called for: $rosterName with ${employees.length} employees');
+    for (final emp in employees) {
+      print('  - Employee: ${emp.name} with ${emp.shifts.length} shifts');
+    }
+    
+    // CRITICAL: Save to storage first, then update stream
     await _saveLocalRoster(rosterName, employees);
+    
+    // Only update the stream if controller exists and is not closed
+    final ctrl = _rosterCtrls[rosterName];
+    if (ctrl != null && !ctrl.isClosed) {
+      print('🔍 Updating stream controller with ${employees.length} employees');
+      // Create a deep copy to prevent reference issues
+      final employeesCopy = employees.map((e) => Employee(
+        name: e.name,
+        shifts: Map<String, Shift>.from(e.shifts),
+        accumulatedWorkedHours: e.accumulatedWorkedHours,
+        accumulatedTotalHours: e.accumulatedTotalHours,
+        accumulatedHolidayHours: e.accumulatedHolidayHours,
+        employeeColor: e.employeeColor,
+        rosterStartDate: e.rosterStartDate,
+        rosterEndDate: e.rosterEndDate,
+      )).toList();
+      
+      ctrl.add(employeesCopy);
+      print('✅ Stream updated successfully');
+    } else {
+      print('⚠️ No stream controller available for $rosterName');
+    }
     
     // Disabled Firebase code:
     // if (_useCloud && _uid != null) {
@@ -414,36 +445,74 @@ class RosterStorage {
   // ---- Local helpers ----
 
   static Future<List<Employee>> _loadLocalRoster(String rosterName) async {
+    print('🔍 _loadLocalRoster called for: $rosterName');
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString('roster_$rosterName');
-    if (raw == null || raw.isEmpty) return <Employee>[];
+    
+    if (raw == null || raw.isEmpty) {
+      print('❌ No data found for roster: $rosterName');
+      return <Employee>[];
+    }
+    
+    print('🔍 Raw data length: ${raw.length} characters');
+    print('🔍 Raw data preview: ${raw.substring(0, raw.length > 200 ? 200 : raw.length)}...');
+    
     try {
       final decoded = jsonDecode(raw);
       if (decoded is List) {
-        return decoded
+        final employees = decoded
             .map((e) => Employee.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList();
+        
+        print('✅ Successfully loaded ${employees.length} employees');
+        for (final emp in employees) {
+          print('  - Employee: ${emp.name} with ${emp.shifts.length} shifts');
+          for (final entry in emp.shifts.entries) {
+            print('    - ${entry.key}: ${entry.value.formatted()}');
+          }
+        }
+        
+        return employees;
+      } else {
+        print('❌ Decoded data is not a List: $decoded');
+        return <Employee>[];
       }
-    } catch (_) {
-      // ignore decode errors, return empty
+    } catch (e, stackTrace) {
+      print('❌ Error parsing roster data: $e');
+      print('❌ Stack trace: $stackTrace');
+      return <Employee>[];
     }
-    return <Employee>[];
   }
 
   static Future<void> _saveLocalRoster(String rosterName, List<Employee> employees) async {
+    print('🔍 _saveLocalRoster called for: $rosterName with ${employees.length} employees');
+    
+    for (final emp in employees) {
+      print('  - Saving Employee: ${emp.name} with ${emp.shifts.length} shifts');
+      for (final entry in emp.shifts.entries) {
+        print('    - ${entry.key}: ${entry.value.formatted()}');
+      }
+    }
+    
     final prefs = await SharedPreferences.getInstance();
     final encoded = jsonEncode(employees.map((e) => e.toJson()).toList());
+    
+    print('🔍 Encoded data length: ${encoded.length} characters');
+    print('🔍 Encoded data preview: ${encoded.substring(0, encoded.length > 200 ? 200 : encoded.length)}...');
+    
     await prefs.setString('roster_$rosterName', encoded);
-
-    // Update the stream directly with the data we just saved
-    final ctrl = _rosterCtrls[rosterName];
-    if (ctrl != null && !ctrl.isClosed) {
-      ctrl.add(List<Employee>.from(employees));
-      print('🔍 Updated stream directly with ${employees.length} employees');
+    print('✅ Data saved to SharedPreferences for roster: $rosterName');
+    
+    // Verify the save by reading it back
+    final verification = prefs.getString('roster_$rosterName');
+    if (verification != null && verification == encoded) {
+      print('✅ Save verification successful');
     } else {
-      // Create stream if it doesn't exist
-      _seedRosterStreamOnce(rosterName);
+      print('❌ Save verification failed!');
     }
+
+    // Do NOT update stream here - let saveRoster() handle it to avoid double updates
+    print('✅ _saveLocalRoster completed successfully');
   }
 
   // ---- Appearance (colors) per roster — cloud-aware ----

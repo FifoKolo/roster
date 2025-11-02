@@ -171,13 +171,29 @@ class _RosterPageState extends State<RosterPage> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
+          print('🔍 Add employee button pressed');
           final result = await _showAddEmployeeDialog(context);
           final name = result?.$1 ?? '';
           if (name.isNotEmpty) {
+            print('🔍 Adding employee: $name');
+            print('🔍 Current employee count: ${employees.length}');
+            
+            final newEmployee = Employee(
+              name: name,
+              rosterStartDate: weekDates['Mon'],
+              rosterEndDate: weekDates['Sun'],
+            );
+            
             setState(() {
-              employees.add(Employee(name: name));
+              employees.add(newEmployee);
             });
+            
+            print('✅ Employee added to local list. New count: ${employees.length}');
+            print('🔍 Saving roster...');
             await _saveRoster(employees); // persist after add
+            print('✅ Roster saved successfully');
+          } else {
+            print('❌ No employee name provided');
           }
         },
         child: const Icon(Icons.add),
@@ -258,13 +274,7 @@ class _RosterPageState extends State<RosterPage> {
           // Roster Table
           Expanded(
             child: StreamBuilder<List<Employee>>(
-              stream: RosterStorage.watchRoster(widget.rosterName).timeout(
-                Duration(seconds: 10),
-                onTimeout: (sink) {
-                  print('⚠️ Stream timeout - loading empty roster');
-                  sink.add([]);
-                },
-              ),
+              stream: RosterStorage.watchRoster(widget.rosterName),
               builder: (context, snapshot) {
                 print('🔍 StreamBuilder state - hasData: ${snapshot.hasData}, hasError: ${snapshot.hasError}, connectionState: ${snapshot.connectionState}');
                 
@@ -289,21 +299,54 @@ class _RosterPageState extends State<RosterPage> {
                 
                 if (snapshot.hasData) {
                   final currentEmployees = snapshot.data!;
+                  print('✅ StreamBuilder received ${currentEmployees.length} employees');
                   
-                  // Only update if the data has actually changed to prevent infinite loops
-                  if (employees.length != currentEmployees.length || 
-                      employees != currentEmployees) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                  // CRITICAL: Only update state if this is initial load OR external change
+                  bool shouldUpdate = false;
+                  
+                  // Initial load case - employees list is empty
+                  if (employees.isEmpty && currentEmployees.isNotEmpty) {
+                    print('🔄 Initial load - setting employees');
+                    shouldUpdate = true;
+                  }
+                  // Length change from external source (not local addition)
+                  else if (employees.length != currentEmployees.length) {
+                    // Check if this is a new employee we just added locally
+                    bool isLocalAddition = employees.length == currentEmployees.length - 1;
+                    if (!isLocalAddition) {
+                      print('🔄 Employee count changed externally');
+                      shouldUpdate = true;
+                    } else {
+                      print('✅ Local addition detected - not overwriting');
+                    }
+                  }
+                  // Check for actual data changes (shifts, etc.)
+                  else if (employees.length == currentEmployees.length && employees.isNotEmpty) {
+                    for (int i = 0; i < employees.length; i++) {
+                      if (employees[i].name != currentEmployees[i].name || 
+                          employees[i].shifts.length != currentEmployees[i].shifts.length) {
+                        print('🔄 Employee data changed externally');
+                        shouldUpdate = true;
+                        break;
+                      }
+                    }
+                  }
+                  
+                  if (shouldUpdate) {
+                    print('🔄 Updating state with stream data');
+                    // Use Future.microtask to avoid setState during build
+                    Future.microtask(() {
                       if (mounted) {
                         setState(() {
-                          employees = currentEmployees;
+                          employees = List.from(currentEmployees);
                           _updateWeekDatesFromRoster(currentEmployees);
                         });
                       }
                     });
+                  } else {
+                    print('✅ No state update needed - using current local data');
                   }
                   
-                  print('✅ StreamBuilder received ${currentEmployees.length} employees');
                   return RosterTable(
                     employees: currentEmployees,
                     weekDates: weekDates,
@@ -326,12 +369,24 @@ class _RosterPageState extends State<RosterPage> {
                       SizedBox(height: 16),
                       Text('Loading roster...'),
                       SizedBox(height: 16),
-                      TextButton(
-                        onPressed: () {
-                          print('🔄 User requested reload');
-                          setState(() {});
+                      ElevatedButton(
+                        onPressed: () async {
+                          print('🔄 Manual reload requested');
+                          // Force reload data from storage
+                          try {
+                            final loadedEmployees = await RosterStorage.loadRoster(widget.rosterName);
+                            print('✅ Manual reload: loaded ${loadedEmployees.length} employees');
+                            if (mounted) {
+                              setState(() {
+                                employees = loadedEmployees;
+                                _updateWeekDatesFromRoster(loadedEmployees);
+                              });
+                            }
+                          } catch (e) {
+                            print('❌ Manual reload failed: $e');
+                          }
                         },
-                        child: Text('Taking too long? Click to reload'),
+                        child: Text('Reload Data'),
                       ),
                     ],
                   ),

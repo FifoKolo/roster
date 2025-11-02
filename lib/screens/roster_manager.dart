@@ -72,8 +72,10 @@ class _RosterManagerState extends State<RosterManager> {
 
       if (choice == 'load_previous' && rosterNames.isNotEmpty) {
         print('🔍 Loading previous roster data...');
+        
+        // Find the most recent roster by name (simple approach)
         final lastRosterName = rosterNames.last;
-        print('🔍 Last roster name: $lastRosterName');
+        print('🔍 Loading from roster: $lastRosterName');
         
         final prev = await RosterStorage.loadRoster(lastRosterName);
         print('✅ Loaded ${prev.length} employees from previous roster');
@@ -93,7 +95,8 @@ class _RosterManagerState extends State<RosterManager> {
                   rosterEndDate: sunday,
                 ))
             .toList();
-        print('✅ Processed ${newEmployees.length} employees');
+        
+        print('✅ Processed ${newEmployees.length} employees for new week');
         } else if (choice == 'start_fresh') {
         print('🔍 Getting initial staff names...');
         // Optionally prefill names

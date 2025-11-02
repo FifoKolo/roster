@@ -270,22 +270,31 @@ class Employee {
     // no-op
   }
 
-  Map<String, dynamic> toJson() => {
-    'name': name,
-    'shifts': shifts.map((day, shift) => MapEntry(day, shift.toJson())),
-    'accumulatedWorkedHours': accumulatedWorkedHours,
-    'accumulatedTotalHours': accumulatedTotalHours,
-    'accumulatedHolidayHours': accumulatedHolidayHours,
-    'employeeColor': employeeColor?.value, // <- persist ARGB
-    'rosterStartDate': rosterStartDate?.millisecondsSinceEpoch,
-    'rosterEndDate': rosterEndDate?.millisecondsSinceEpoch,
-  };
+  Map<String, dynamic> toJson() {
+    final json = {
+      'name': name,
+      'shifts': shifts.map((day, shift) => MapEntry(day, shift.toJson())),
+      'accumulatedWorkedHours': accumulatedWorkedHours,
+      'accumulatedTotalHours': accumulatedTotalHours,
+      'accumulatedHolidayHours': accumulatedHolidayHours,
+      'employeeColor': employeeColor?.value, // <- persist ARGB
+      'rosterStartDate': rosterStartDate?.millisecondsSinceEpoch,
+      'rosterEndDate': rosterEndDate?.millisecondsSinceEpoch,
+    };
+    print('🔍 Employee.toJson for ${name}: ${shifts.length} shifts, ${json.toString().substring(0, json.toString().length > 100 ? 100 : json.toString().length)}...');
+    return json;
+  }
 
-  static Employee fromJson(Map<String, dynamic> json) => Employee(
-    name: (json['name'] ?? '') as String,
-    shifts: (() {
+  static Employee fromJson(Map<String, dynamic> json) {
+    final name = (json['name'] ?? '') as String;
+    print('🔧 Employee.fromJson for $name starting...');
+    
+    final shifts = (() {
       final raw = json['shifts'];
+      print('🔧 Employee.fromJson $name: raw shifts type: ${raw.runtimeType}');
       if (raw is Map) {
+        final shiftCount = raw.length;
+        print('🔧 Employee.fromJson $name: processing $shiftCount shifts');
         return raw.map<String, Shift>((day, shiftJson) {
           return MapEntry(
             day.toString(),
@@ -293,8 +302,14 @@ class Employee {
           );
         });
       }
+      print('🔧 Employee.fromJson $name: returning empty shifts map');
       return <String, Shift>{};
-    })(),
+    })();
+    
+    print('🔧 Employee.fromJson $name: created with ${shifts.length} shifts');
+    return Employee(
+    name: name,
+    shifts: shifts,
     accumulatedWorkedHours: _toDouble(json['accumulatedWorkedHours']),
     accumulatedTotalHours: _toDouble(json['accumulatedTotalHours']),
     accumulatedHolidayHours: _toDouble(json['accumulatedHolidayHours']),
@@ -302,6 +317,7 @@ class Employee {
     rosterStartDate: json['rosterStartDate'] != null ? DateTime.fromMillisecondsSinceEpoch(json['rosterStartDate'] as int) : null,
     rosterEndDate: json['rosterEndDate'] != null ? DateTime.fromMillisecondsSinceEpoch(json['rosterEndDate'] as int) : null,
   );
+  }
 }
 
 // Safe numeric parsing
