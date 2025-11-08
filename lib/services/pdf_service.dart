@@ -118,9 +118,6 @@ class PdfService {
                 ),
             ],
           ),
-          pw.SizedBox(height: 20),
-          pw.Text('Generated on ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}',
-                   style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
         ],
       ),
     );
@@ -287,10 +284,6 @@ class PdfService {
           pw.Text('• Remaining Holiday: Holiday hours left after this roster (negative = overused)', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
           pw.Text('• Use PAID hours for payroll calculations and wages', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
           pw.Text('• This report contains confidential payroll information - for management use only', style: pw.TextStyle(fontSize: 10)),
-          
-          pw.SizedBox(height: 20),
-          pw.Text('Generated on ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}',
-                   style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
         ],
       ),
     );
