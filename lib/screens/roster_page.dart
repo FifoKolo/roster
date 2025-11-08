@@ -3,6 +3,7 @@ import '../models/employee_model.dart';
 import '../services/pdf_service.dart';
 import '../widgets/add_shift_dialog.dart';
 import '../widgets/roster_table.dart';
+import '../widgets/modern_roster_table.dart';
 import '../services/roster_storage.dart';
 import '../services/irish_bank_holidays.dart';
 
@@ -18,6 +19,7 @@ class RosterPage extends StatefulWidget {
 class _RosterPageState extends State<RosterPage> {
   List<Employee> employees = [];
   Map<String, DateTime> weekDates = {};
+  bool _useModernView = true; // Toggle between classic and modern view
 
   // NEW: appearance state
   Color? headerColor;
@@ -149,6 +151,16 @@ class _RosterPageState extends State<RosterPage> {
       appBar: AppBar(
         title: Text(widget.rosterName),
         actions: [
+          // Toggle between modern and classic view
+          IconButton(
+            tooltip: _useModernView ? 'Switch to Classic View' : 'Switch to Modern View',
+            icon: Icon(_useModernView ? Icons.table_rows : Icons.dashboard),
+            onPressed: () {
+              setState(() {
+                _useModernView = !_useModernView;
+              });
+            },
+          ),
           // NEW: palette customization
           IconButton(
             tooltip: 'Customize appearance',
@@ -347,17 +359,24 @@ class _RosterPageState extends State<RosterPage> {
                     print('✅ No state update needed - using current local data');
                   }
                   
-                  return RosterTable(
-                    employees: currentEmployees,
-                    weekDates: weekDates,
-                    onEdit: _openEditDialog,
-                    onRosterChanged: (list) => _saveRoster(list),
-                    headerColor: headerColor,
-                    headerTextColor: headerTextColor,
-                    cellBorderColor: cellBorderColor,
-                    dayOffBgColor: dayOffBgColor,
-                    holidayBgColor: holidayBgColor,
-                  );
+                  return _useModernView 
+                    ? ModernRosterTable(
+                        employees: currentEmployees,
+                        weekDates: weekDates,
+                        onEdit: _openEditDialog,
+                        onRosterChanged: (list) => _saveRoster(list),
+                      )
+                    : RosterTable(
+                        employees: currentEmployees,
+                        weekDates: weekDates,
+                        onEdit: _openEditDialog,
+                        onRosterChanged: (list) => _saveRoster(list),
+                        headerColor: headerColor,
+                        headerTextColor: headerTextColor,
+                        cellBorderColor: cellBorderColor,
+                        dayOffBgColor: dayOffBgColor,
+                        holidayBgColor: holidayBgColor,
+                      );
                 }
                 
                 print('🔍 StreamBuilder showing loading spinner...');
