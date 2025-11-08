@@ -554,7 +554,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
             backgroundColor: _primaryBlue.withOpacity(0.1),
             foregroundColor: _primaryBlue,
             elevation: 0,
-            shape: RoundedRectangleBorder(q
+            shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
               side: BorderSide(color: _primaryBlue.withOpacity(0.3)),
             ),
@@ -887,8 +887,9 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     } else {
       // Empty cell - make it a drop target
       return DragTarget<Map<String, dynamic>>(
-        onWillAcceptWithDetails: (data) => data != null && data['shift'] != null,
-        onAcceptWithDetails: (data) {
+        onWillAcceptWithDetails: (details) => details.data['shift'] != null,
+        onAcceptWithDetails: (details) {
+          final data = details.data;
           final draggedShift = data['shift'] as Shift;
           final sourceEmployee = data['sourceEmployee'] as String;
           final sourceDay = data['sourceDay'] as String;
@@ -1239,12 +1240,6 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     widget.onRosterChanged(employeeList);
     _notifyCurrentWeekDataChanged();
     
-    // Verify the data was saved correctly
-    // Removed emoji print statement
-    for (final entry in targetEmployee.shifts.entries) {
-      // Removed emoji print statement
-    }
-    
     // Show success message
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1493,9 +1488,6 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       // Removed emoji print statement
       return;
     }
-    
-    final oldWeekKey = _getWeekKey(_currentWeek);
-    // Removed emoji print statement
     
     // Save current week's data before navigation
     _saveCurrentWeekData();
