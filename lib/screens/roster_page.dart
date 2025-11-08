@@ -599,7 +599,7 @@ class _RosterPageState extends State<RosterPage> {
                   ],
                 ),
               );
-            }).toList(),
+            }),
           ],
         ),
       ),

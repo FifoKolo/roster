@@ -33,7 +33,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   DateTime _currentWeek = DateTime.now();
   
   // Week-specific data storage to maintain separate schedules for each week
-  Map<String, Map<String, Map<String, Shift>>> _weeklyData = {};
+  final Map<String, Map<String, Map<String, Shift>>> _weeklyData = {};
   
   // Independent employee data for week-specific rosters
   List<Employee> _independentEmployees = [];
@@ -554,7 +554,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
             backgroundColor: _primaryBlue.withOpacity(0.1),
             foregroundColor: _primaryBlue,
             elevation: 0,
-            shape: RoundedRectangleBorder(
+            shape: RoundedRectangleBorder(q
               borderRadius: BorderRadius.circular(8),
               side: BorderSide(color: _primaryBlue.withOpacity(0.3)),
             ),
@@ -887,8 +887,8 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     } else {
       // Empty cell - make it a drop target
       return DragTarget<Map<String, dynamic>>(
-        onWillAccept: (data) => data != null && data['shift'] != null,
-        onAccept: (data) {
+        onWillAcceptWithDetails: (data) => data != null && data['shift'] != null,
+        onAcceptWithDetails: (data) {
           final draggedShift = data['shift'] as Shift;
           final sourceEmployee = data['sourceEmployee'] as String;
           final sourceDay = data['sourceDay'] as String;
@@ -1261,7 +1261,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Moved shift from ${sourceEmployeeName} (${sourceDay}) to ${targetEmployeeName} (${targetDay})',
+                'Moved shift from $sourceEmployeeName ($sourceDay) to $targetEmployeeName ($targetDay)',
                 style: const TextStyle(color: Colors.white),
               ),
             ),

@@ -1491,7 +1491,7 @@ class _RosterManagerState extends State<RosterManager> {
             ),
           ],
         ),
-        content: Container(
+        content: SizedBox(
           width: 400,
           child: Column(
             mainAxisSize: MainAxisSize.min,

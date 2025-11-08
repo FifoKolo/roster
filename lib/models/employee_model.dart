@@ -281,7 +281,7 @@ class Employee {
       'rosterStartDate': rosterStartDate?.millisecondsSinceEpoch,
       'rosterEndDate': rosterEndDate?.millisecondsSinceEpoch,
     };
-    print('🔍 Employee.toJson for ${name}: ${shifts.length} shifts, ${json.toString().substring(0, json.toString().length > 100 ? 100 : json.toString().length)}...');
+    print('🔍 Employee.toJson for $name: ${shifts.length} shifts, ${json.toString().substring(0, json.toString().length > 100 ? 100 : json.toString().length)}...');
     return json;
   }
 

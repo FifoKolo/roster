@@ -294,7 +294,7 @@ class BankHoliday {
   }
   
   @override
-  String toString() => '$name (${formattedDate})';
+  String toString() => '$name ($formattedDate)';
 }
 
 /// Type of bank holiday

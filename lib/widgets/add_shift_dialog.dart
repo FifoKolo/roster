@@ -103,7 +103,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
     // Auto-format: add colon when user types 2 digits
     if (input.length == 2 && !input.contains(':')) {
       final controller = isStartTime ? startTimeController : endTimeController;
-      final formattedInput = input + ':';
+      final formattedInput = '$input:';
       controller.value = TextEditingValue(
         text: formattedInput,
         selection: TextSelection.collapsed(offset: formattedInput.length),
