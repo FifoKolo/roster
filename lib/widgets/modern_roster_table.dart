@@ -1,12 +1,18 @@
+﻿import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/employee_model.dart';
 import '../services/irish_bank_holidays.dart';
+import '../services/roster_storage.dart';
+import '../screens/roster_page.dart';
 
 class ModernRosterTable extends StatefulWidget {
   final List<Employee> employees;
   final Map<String, DateTime> weekDates;
   final Future<Shift?> Function(BuildContext, Shift?) onEdit;
   final Future<void> Function(List<Employee>) onRosterChanged;
+  final void Function(List<Employee>, DateTime)? onCurrentWeekDataChanged;
+  final String rosterName; // Add roster name for persistent weekly data
 
   const ModernRosterTable({
     super.key,
@@ -14,6 +20,8 @@ class ModernRosterTable extends StatefulWidget {
     required this.weekDates,
     required this.onEdit,
     required this.onRosterChanged,
+    required this.rosterName,
+    this.onCurrentWeekDataChanged,
   });
 
   @override
@@ -22,21 +30,67 @@ class ModernRosterTable extends StatefulWidget {
 
 class _ModernRosterTableState extends State<ModernRosterTable> {
   static const List<String> _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  String _viewBy = 'Employee'; // 'Employee' or 'Day'
   DateTime _currentWeek = DateTime.now();
   
-  // Color scheme matching ScheduleBee
-  static const Color _primaryOrange = Color(0xFFFF6B35);
+  // Week-specific data storage to maintain separate schedules for each week
+  Map<String, Map<String, Map<String, Shift>>> _weeklyData = {};
+  
+  // Independent employee data for week-specific rosters
+  List<Employee> _independentEmployees = [];
+  
+  // Clipboard state for copy/paste functionality
+  Shift? _clipboardShift;
+  
+  // Color scheme matching original app (white and blue theme)
+  static const Color _primaryBlue = Color(0xFF2196F3);
   static const Color _lightGray = Color(0xFFF5F5F5);
   static const Color _darkGray = Color(0xFF666666);
   static const Color _white = Colors.white;
-  static const Color _yellow = Color(0xFFF5E6A3);
-  static const Color _lightBlue = Color(0xFFB8D4F1);
+  static const Color _lightBlue = Color(0xFFE3F2FD);
 
   @override
   void initState() {
     super.initState();
     _initCurrentWeek();
+    _initWeeklyData();
+    
+    // For week-specific rosters, create independent copies of employee data
+    final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
+    if (isWeekSpecificRoster) {
+      // Removed emoji print statement
+      _independentEmployees = widget.employees.map((emp) {
+        final empJson = emp.toJson();
+        final newEmp = Employee.fromJson(empJson);
+        // Removed emoji print statement
+        return newEmp;
+      }).toList();
+    }
+  }
+
+  // Get the appropriate employee list based on roster type
+  List<Employee> _getEmployeeList() {
+    final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
+    return isWeekSpecificRoster ? _independentEmployees : widget.employees;
+  }
+
+  @override
+  void dispose() {
+    // IMPORTANT: Do NOT auto-save on dispose for week-specific rosters
+    // This causes race conditions when navigating between weeks
+    // Removed emoji print statement
+    
+    final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
+    if (isWeekSpecificRoster) {
+      // For week-specific rosters, do NOT auto-save on dispose
+      // This prevents race conditions during navigation
+      // Removed emoji print statement
+      // Removed emoji print statement
+    } else {
+      // For regular rosters, save weekly data
+      // Removed emoji print statement
+      _saveWeeklyDataToStorage(widget.rosterName);
+    }
+    super.dispose();
   }
 
   void _initCurrentWeek() {
@@ -45,6 +99,185 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       if (mondayDate != null) {
         _currentWeek = mondayDate;
       }
+    }
+  }
+
+  // Initialize weekly data by loading from storage, then load current week
+  Future<void> _initWeeklyData() async {
+    // Removed emoji print statement
+    await _loadWeeklyDataFromStorage(widget.rosterName);
+    _loadCurrentWeekData();
+  }
+  
+  // Generate a unique key for each week
+  String _getWeekKey(DateTime week) {
+    return '${week.year}-${week.month.toString().padLeft(2, '0')}-${week.day.toString().padLeft(2, '0')}';
+  }
+  
+  // Load current week's data from storage or widget.employees
+  void _loadCurrentWeekData() {
+    final weekKey = _getWeekKey(_currentWeek);
+    // Removed emoji print statement
+    
+    // Check if this is a week-specific roster (like "Week 45", "Week 46", etc.)
+    final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
+    
+    if (isWeekSpecificRoster) {
+      // For week-specific rosters, don't use weekly data system - just use the roster's data directly
+      // Removed emoji print statement
+      return; // Keep the original employee data as-is
+    }
+    
+    if (_weeklyData.containsKey(weekKey)) {
+      // Load from cached weekly data
+      // Removed emoji print statement
+      final weekData = _weeklyData[weekKey]!;
+      final employeeList = _getEmployeeList();
+      for (final employee in employeeList) {
+        final employeeData = weekData[employee.name] ?? <String, Shift>{};
+        employee.shifts.clear();
+        employee.shifts.addAll(employeeData);
+        // Removed emoji print statement
+      }
+    } else {
+      // First time loading this week - save current data
+      // Removed emoji print statement
+      _saveCurrentWeekData();
+    }
+  }
+  
+  // Save current week's data to our weekly storage
+  void _saveCurrentWeekData() {
+    final weekKey = _getWeekKey(_currentWeek);
+    // Removed emoji print statement
+    
+    // Check if this is a week-specific roster (like "Week 45", "Week 46", etc.)
+    final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
+    
+    if (isWeekSpecificRoster) {
+      // For week-specific rosters, save directly to roster storage instead of weekly data
+      // Removed emoji print statement
+      _saveToRosterStorage(); // This is async but we don't await it to keep the method sync
+      _notifyCurrentWeekDataChanged();
+      return;
+    }
+    
+    final employeeList = _getEmployeeList();
+    _weeklyData[weekKey] = {};
+    
+    for (final employee in employeeList) {
+      final shiftsCopy = <String, Shift>{};
+      // Create deep copies of shifts to ensure independence
+      for (final entry in employee.shifts.entries) {
+        final shiftJson = entry.value.toJson();
+        shiftsCopy[entry.key] = Shift.fromJson(shiftJson);
+      }
+      _weeklyData[weekKey]![employee.name] = shiftsCopy;
+      // Removed emoji print statement
+    }
+    // Removed emoji print statement
+    
+    // Persist weekly data to storage
+    _saveWeeklyDataToStorage(widget.rosterName);
+    
+    // Notify parent of current week data changes for PDF generation
+    _notifyCurrentWeekDataChanged();
+  }
+
+  // Save week-specific roster data directly to roster storage
+  Future<void> _saveToRosterStorage() async {
+    try {
+      // Removed emoji print statement
+      final employeeList = _getEmployeeList();
+      await RosterStorage.saveRoster(widget.rosterName, employeeList);
+      // Removed emoji print statement
+    } catch (e) {
+      // Removed emoji print statement
+    }
+  }
+
+  // Notify parent component of current week data for PDF generation
+  void _notifyCurrentWeekDataChanged() {
+    if (widget.onCurrentWeekDataChanged != null) {
+      final employeeList = _getEmployeeList();
+      // Defer the callback to prevent setState() during build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          widget.onCurrentWeekDataChanged!(employeeList, _currentWeek);
+        }
+      });
+    }
+  }
+
+  // Persist weekly data to SharedPreferences
+  Future<void> _saveWeeklyDataToStorage(String rosterName) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final weeklyDataJson = <String, Map<String, Map<String, dynamic>>>{};
+      
+      // Convert weekly data to JSON format
+      for (final weekEntry in _weeklyData.entries) {
+        final weekKey = weekEntry.key;
+        final weekData = weekEntry.value;
+        weeklyDataJson[weekKey] = {};
+        
+        for (final employeeEntry in weekData.entries) {
+          final employeeName = employeeEntry.key;
+          final shifts = employeeEntry.value;
+          weeklyDataJson[weekKey]![employeeName] = {};
+          
+          for (final shiftEntry in shifts.entries) {
+            final day = shiftEntry.key;
+            final shift = shiftEntry.value;
+            weeklyDataJson[weekKey]![employeeName]![day] = shift.toJson();
+          }
+        }
+      }
+      
+      final jsonString = jsonEncode(weeklyDataJson);
+      await prefs.setString('weekly_data_$rosterName', jsonString);
+      // Removed emoji print statement
+    } catch (e) {
+      // Removed emoji print statement
+    }
+  }
+
+  // Load weekly data from SharedPreferences
+  Future<void> _loadWeeklyDataFromStorage(String rosterName) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonString = prefs.getString('weekly_data_$rosterName');
+      
+      if (jsonString != null) {
+        final weeklyDataJson = jsonDecode(jsonString) as Map<String, dynamic>;
+        _weeklyData.clear();
+        
+        // Convert JSON back to weekly data format
+        for (final weekEntry in weeklyDataJson.entries) {
+          final weekKey = weekEntry.key;
+          final weekData = weekEntry.value as Map<String, dynamic>;
+          _weeklyData[weekKey] = {};
+          
+          for (final employeeEntry in weekData.entries) {
+            final employeeName = employeeEntry.key;
+            final shiftsData = employeeEntry.value as Map<String, dynamic>;
+            _weeklyData[weekKey]![employeeName] = {};
+            
+            for (final shiftEntry in shiftsData.entries) {
+              final day = shiftEntry.key;
+              final shiftJson = shiftEntry.value as Map<String, dynamic>;
+              _weeklyData[weekKey]![employeeName]![day] = Shift.fromJson(shiftJson);
+            }
+          }
+        }
+        
+        // Removed emoji print statement
+      } else {
+        // Removed emoji print statement
+      }
+    } catch (e) {
+      // Removed emoji print statement
+      _weeklyData.clear(); // Reset to empty on error
     }
   }
 
@@ -59,6 +292,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         children: [
           _buildHeader(),
           _buildWeekNavigation(),
+          _buildHelpfulTips(),
           _buildDayHeaders(),
           Expanded(
             child: _buildRosterContent(),
@@ -87,7 +321,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: _primaryOrange,
+                  color: _primaryBlue,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
@@ -98,50 +332,11 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
               ),
               const SizedBox(width: 12),
               const Text(
-                'RosterBee',
+                '[appName]',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: _primaryOrange,
-                ),
-              ),
-            ],
-          ),
-          const Spacer(),
-          
-          // View by dropdown
-          Row(
-            children: [
-              const Text(
-                'View by:',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: _darkGray,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  border: Border.all(color: _darkGray.withOpacity(0.3)),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: DropdownButton<String>(
-                  value: _viewBy,
-                  underline: const SizedBox(),
-                  items: ['Employee', 'Day'].map((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
-                  onChanged: (String? newValue) {
-                    if (newValue != null) {
-                      setState(() {
-                        _viewBy = newValue;
-                      });
-                    }
-                  },
+                  color: _primaryBlue,
                 ),
               ),
             ],
@@ -152,6 +347,9 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   }
 
   Widget _buildWeekNavigation() {
+    // Check if this is a week-specific roster (like "Week 45", "Week 46", etc.)
+    final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       color: _white,
@@ -165,6 +363,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.calendar_today, size: 16, color: _darkGray),
                 const SizedBox(width: 8),
@@ -178,12 +377,25 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           
           const SizedBox(width: 16),
           
-          // Navigation buttons
-          _buildNavButton('◄◄ Prev Week', () => _navigateWeek(-1)),
-          const SizedBox(width: 8),
-          _buildNavButton('Current Week', () => _goToCurrentWeek()),
-          const SizedBox(width: 8),
-          _buildNavButton('Next Week ►►', () => _navigateWeek(1)),
+          // Show different navigation based on roster type - wrap in Expanded to prevent overflow
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                if (isWeekSpecificRoster) ...[
+                  // For week-specific rosters, show week navigation
+                  Flexible(child: _buildWeekSpecificNavigation()),
+                ] else ...[
+                  // For regular rosters, show navigation buttons
+                  _buildNavButton('◄◄ Prev Week', () => _navigateWeek(-1)),
+                  const SizedBox(width: 8),
+                  _buildNavButton('Current Week', () => _goToCurrentWeek()),
+                  const SizedBox(width: 8),
+                  _buildNavButton('Next Week ►►', () => _navigateWeek(1)),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -206,26 +418,233 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     );
   }
 
+  Widget _buildWeekSpecificNavigation() {
+    // Extract current week number from roster name
+    final weekMatch = RegExp(r'Week (\d+)').firstMatch(widget.rosterName);
+    final currentWeekNumber = weekMatch != null ? int.parse(weekMatch.group(1)!) : null;
+    
+    if (currentWeekNumber == null) {
+      // Fallback for week-specific rosters without number
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: _primaryBlue.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.calendar_today, size: 16, color: _primaryBlue),
+            const SizedBox(width: 8),
+            Text(
+              'Week-Specific Roster',
+              style: TextStyle(
+                color: _primaryBlue,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final prevWeekNumber = currentWeekNumber - 1;
+    final nextWeekNumber = currentWeekNumber + 1;
+    final prevWeekName = 'Week $prevWeekNumber';
+    final nextWeekName = 'Week $nextWeekNumber';
+
+    return Row(
+      children: [
+        // Current week indicator
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: _primaryBlue.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.calendar_today, size: 16, color: _primaryBlue),
+              const SizedBox(width: 8),
+              Text(
+                widget.rosterName,
+                style: TextStyle(
+                  color: _primaryBlue,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        const SizedBox(width: 12),
+        
+        // Previous week button
+        ElevatedButton(
+          onPressed: () async {
+            print('Previous week button clicked for $prevWeekName');
+            print('About to get roster names directly from SharedPreferences...');
+            try {
+              // Get roster names directly from SharedPreferences instead of stream
+              final prefs = await SharedPreferences.getInstance();
+              final rosterNames = prefs.getStringList('roster_names') ?? <String>[];
+              print('Got roster names directly: ${rosterNames.join(", ")}');
+              final exists = rosterNames.contains(prevWeekName);
+              print('Does $prevWeekName exist? $exists');
+              
+              if (exists) {
+                print('Navigating to existing $prevWeekName');
+                _navigateToWeekRoster(prevWeekName);
+              } else {
+                print('Creating new $prevWeekName');
+                _createAndNavigateToWeekRoster(prevWeekName, -1);
+              }
+            } catch (e) {
+              print('Error in navigation logic: $e');
+              print('Stack trace: ${StackTrace.current}');
+            }
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _primaryBlue.withOpacity(0.1),
+            foregroundColor: _primaryBlue,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: BorderSide(color: _primaryBlue.withOpacity(0.3)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.add_circle_outline, size: 14),
+              const SizedBox(width: 4),
+              Text('◄ $prevWeekName', style: const TextStyle(fontSize: 12)),
+            ],
+          ),
+        ),
+        
+        const SizedBox(width: 8),
+        
+        // Next week button  
+        ElevatedButton(
+          onPressed: () async {
+            print('Next week button clicked for $nextWeekName');
+            print('About to get roster names directly from SharedPreferences...');
+            try {
+              // Get roster names directly from SharedPreferences instead of stream
+              final prefs = await SharedPreferences.getInstance();
+              final rosterNames = prefs.getStringList('roster_names') ?? <String>[];
+              print('Got roster names directly: ${rosterNames.join(", ")}');
+              final exists = rosterNames.contains(nextWeekName);
+              print('Does $nextWeekName exist? $exists');
+              
+              if (exists) {
+                print('Navigating to existing $nextWeekName');
+                _navigateToWeekRoster(nextWeekName);
+              } else {
+                print('Creating new $nextWeekName');
+                _createAndNavigateToWeekRoster(nextWeekName, 1);
+              }
+            } catch (e) {
+              print('Error in navigation logic: $e');
+              print('Stack trace: ${StackTrace.current}');
+            }
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _primaryBlue.withOpacity(0.1),
+            foregroundColor: _primaryBlue,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: BorderSide(color: _primaryBlue.withOpacity(0.3)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.add_circle_outline, size: 14),
+              const SizedBox(width: 4),
+              Text('$nextWeekName ►', style: const TextStyle(fontSize: 12)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHelpfulTips() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_primaryBlue.withOpacity(0.05), Colors.indigo.withOpacity(0.05)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _primaryBlue.withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: _primaryBlue.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(Icons.lightbulb, color: _primaryBlue, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Quick Tips:',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: _primaryBlue,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '• Tap empty cells to add shifts  • Drag & drop shifts to move them  • Long-press shifts for options (copy, edit, delete)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _darkGray,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDayHeaders() {
     return Container(
       color: _white,
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
-          // Employee name column header (if viewing by employee)
-          if (_viewBy == 'Employee')
-            Container(
-              width: 180,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: const Text(
-                'Open Shifts',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: _darkGray,
-                ),
+          // Employee name column header
+          Container(
+            width: 180,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: const Text(
+              'Employees',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: _darkGray,
               ),
             ),
+          ),
           
           // Day headers
           Expanded(
@@ -268,7 +687,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: isBankHoliday ? Colors.red : _primaryOrange,
+              color: isBankHoliday ? Colors.red : _primaryBlue,
             ),
           ),
           if (date != null) ...[
@@ -298,102 +717,24 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   }
 
   Widget _buildRosterContent() {
+    final employeeList = _getEmployeeList();
+    
     return Container(
       color: _white,
       child: Column(
         children: [
-          // Open shifts row
-          _buildOpenShiftsRow(),
-          
           // Employee rows
           Expanded(
             child: ListView.builder(
-              itemCount: widget.employees.length,
+              itemCount: employeeList.length,
               itemBuilder: (context, index) {
-                final employee = widget.employees[index];
+                final employee = employeeList[index];
                 return _buildEmployeeRow(employee, index);
               },
             ),
           ),
-          
-          // Add shift row
-          _buildAddShiftRow(),
         ],
       ),
-    );
-  }
-
-  Widget _buildOpenShiftsRow() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: _darkGray.withOpacity(0.2)),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 180,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: const Text(
-              'Open Shifts',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: _darkGray,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Row(
-              children: _days.map((day) {
-                return Expanded(
-                  child: _buildOpenShiftCell(day),
-                );
-              }).toList(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOpenShiftCell(String day) {
-    // Check if there are any unassigned shifts for this day
-    // For now, show example open shifts
-    final hasOpenShift = day == 'Mon' || day == 'Tue'; // Example logic
-    
-    return Container(
-      padding: const EdgeInsets.all(8),
-      margin: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: hasOpenShift ? _yellow : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _darkGray.withOpacity(0.2)),
-      ),
-      child: hasOpenShift
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '2pm - 5:45pm',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.brown[700],
-                  ),
-                ),
-                Text(
-                  'Manager',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.brown[600],
-                  ),
-                ),
-              ],
-            )
-          : const SizedBox(height: 40),
     );
   }
 
@@ -442,7 +783,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
             // Avatar
             CircleAvatar(
               radius: 12,
-              backgroundColor: _primaryOrange,
+              backgroundColor: _primaryBlue,
               child: Text(
                 employee.name.isNotEmpty ? employee.name[0].toUpperCase() : '?',
                 style: const TextStyle(
@@ -484,8 +825,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
             'View profile',
             style: TextStyle(
               fontSize: 12,
-              color: _primaryOrange,
-              decoration: TextDecoration.underline,
+              color: _primaryBlue,
             ),
           ),
         ),
@@ -494,22 +834,140 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   }
 
   Widget _buildShiftCell(Employee employee, String day, Shift? shift) {
-    return GestureDetector(
-      onTap: () => _editShift(employee, day, shift),
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        margin: const EdgeInsets.all(2),
-        decoration: BoxDecoration(
-          color: _getShiftCellColor(shift),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: _darkGray.withOpacity(0.2),
-            width: 0.5,
+    if (shift != null) {
+      // Existing shift - make it draggable
+      return Draggable<Map<String, dynamic>>(
+        data: {
+          'shift': shift,
+          'sourceEmployee': employee.name,
+          'sourceDay': day,
+        },
+        feedback: Material(
+          elevation: 8,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            width: 120,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: _getShiftCellColor(shift).withOpacity(0.9),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: _primaryBlue, width: 2),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.drag_handle, color: _primaryBlue, size: 16),
+                const SizedBox(height: 4),
+                _buildShiftContent(shift),
+              ],
+            ),
           ),
         ),
-        child: _buildShiftContent(shift),
-      ),
-    );
+        childWhenDragging: Container(
+          padding: const EdgeInsets.all(16),
+          margin: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade200,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: Colors.grey.shade400, style: BorderStyle.solid),
+          ),
+          child: Center(
+            child: Text(
+              'Moving...',
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+        ),
+        child: _buildInteractiveShiftCell(employee, day, shift),
+      );
+    } else {
+      // Empty cell - make it a drop target
+      return DragTarget<Map<String, dynamic>>(
+        onWillAccept: (data) => data != null && data['shift'] != null,
+        onAccept: (data) {
+          final draggedShift = data['shift'] as Shift;
+          final sourceEmployee = data['sourceEmployee'] as String;
+          final sourceDay = data['sourceDay'] as String;
+          
+          _moveShift(sourceEmployee, sourceDay, employee.name, day, draggedShift);
+        },
+        builder: (context, candidateData, rejectedData) {
+          final isHovering = candidateData.isNotEmpty;
+          
+          return GestureDetector(
+            onTap: () => _addShiftToCell(employee, day),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: isHovering 
+                  ? _primaryBlue.withOpacity(0.1)
+                  : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isHovering
+                    ? _primaryBlue
+                    : _hasClipboard() 
+                      ? _primaryBlue.withOpacity(0.5)
+                      : _darkGray.withOpacity(0.2),
+                  width: isHovering ? 2 : (_hasClipboard() ? 2 : 0.5),
+                ),
+              ),
+              child: Stack(
+                children: [
+                  _buildShiftContent(shift),
+                  if (isHovering)
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: _primaryBlue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.add_circle,
+                            color: _primaryBlue,
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                    ),
+                  // Add visual indicator for empty cells when clipboard has data
+                  if (_hasClipboard() && shift == null && !isHovering)
+                    Positioned(
+                      top: 2,
+                      right: 2,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: _primaryBlue,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ),
+                  // Add visual indicator for clickable empty cells
+                  if (shift == null && !_hasClipboard() && !isHovering)
+                    Positioned(
+                      bottom: 2,
+                      right: 2,
+                      child: Icon(
+                        Icons.add_circle_outline,
+                        size: 16,
+                        color: _darkGray.withOpacity(0.5),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
   }
 
   Color _getShiftCellColor(Shift? shift) {
@@ -519,7 +977,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     
     // For work shifts, use role-based colors
     return shift.role?.toLowerCase().contains('manager') == true 
-        ? _yellow 
+        ? Colors.orange[100]! // Manager shifts in light orange
         : _lightBlue;
   }
 
@@ -529,92 +987,481 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     }
 
     if (shift.isHoliday) {
-      return const Center(
-        child: Text(
-          'Holiday',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: _darkGray,
-          ),
-        ),
-      );
-    } else if (shift.startTime != null && shift.endTime != null) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            '${_formatTime(shift.startTime!)} - ${_formatTime(shift.endTime!)}',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: Colors.brown[700],
-            ),
-          ),
-          if (shift.role?.isNotEmpty == true) ...[
-            const SizedBox(height: 2),
-            Text(
-              shift.role!,
+          const Expanded(
+            child: Text(
+              'Holiday',
               style: TextStyle(
-                fontSize: 10,
-                color: Colors.brown[600],
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: _darkGray,
               ),
             ),
-          ],
+          ),
+          Icon(
+            Icons.drag_indicator,
+            size: 14,
+            color: _darkGray.withOpacity(0.6),
+          ),
+        ],
+      );
+    } else if (shift.startTime != null && shift.endTime != null) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${_formatTime(shift.startTime!)} - ${_formatTime(shift.endTime!)}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.brown[700],
+                  ),
+                ),
+                if (shift.role?.isNotEmpty == true) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    shift.role!,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.brown[600],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 4),
+          Icon(
+            Icons.drag_indicator,
+            size: 14,
+            color: Colors.brown[600]?.withOpacity(0.6),
+          ),
         ],
       );
     } else {
-      return Center(
-        child: Text(
-          'Day Off',
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: _darkGray,
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Expanded(
+            child: Text(
+              'Day Off',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: _darkGray,
+              ),
+            ),
           ),
-        ),
+          Icon(
+            Icons.drag_indicator,
+            size: 14,
+            color: _darkGray.withOpacity(0.6),
+          ),
+        ],
       );
     }
   }
 
-  Widget _buildAddShiftRow() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        children: [
-          ElevatedButton.icon(
-            onPressed: _addShift,
-            icon: const Icon(Icons.add, size: 16),
-            label: const Text('Add'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _lightGray,
-              foregroundColor: _darkGray,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-                side: BorderSide(color: _darkGray.withOpacity(0.3)),
+  // Interactive shift cell with hover effects and quick actions
+  Widget _buildInteractiveShiftCell(Employee employee, String day, Shift shift) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: Builder(
+        builder: (context) {
+          return GestureDetector(
+            onTap: () => _editShift(employee, day, shift),
+            onLongPress: () => _showQuickActions(context, employee, day, shift),
+            child: Tooltip(
+              message: 'Click to edit • Long press for options',
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: _getShiftCellColor(shift),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: _darkGray.withOpacity(0.2),
+                    width: 0.5,
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    _buildShiftContent(shift),
+                    // Quick action buttons on hover (desktop) or always visible (mobile)
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildQuickActionButton(
+                            icon: Icons.copy,
+                            onTap: () => _copyShiftToClipboard(employee, day, shift),
+                            tooltip: 'Copy',
+                          ),
+                          const SizedBox(width: 2),
+                          _buildQuickActionButton(
+                            icon: Icons.delete_outline,
+                            onTap: () => _confirmDeleteShift(employee, day, shift),
+                            tooltip: 'Delete',
+                            isDestructive: true,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildQuickActionButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    required String tooltip,
+    bool isDestructive = false,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            color: isDestructive 
+              ? Colors.red.withOpacity(0.1)
+              : _primaryBlue.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(4),
           ),
-          const SizedBox(width: 12),
-          ElevatedButton.icon(
-            onPressed: _pasteShift,
-            icon: const Icon(Icons.content_paste, size: 16),
-            label: const Text('Paste'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _lightGray,
-              foregroundColor: _darkGray,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-                side: BorderSide(color: _darkGray.withOpacity(0.3)),
+          child: Icon(
+            icon,
+            size: 12,
+            color: isDestructive ? Colors.red : _primaryBlue,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showQuickActions(BuildContext context, Employee employee, String day, Shift shift) {
+    final RenderBox renderBox = context.findRenderObject() as RenderBox;
+    final position = renderBox.localToGlobal(Offset.zero);
+    
+    showMenu(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy + renderBox.size.height,
+        position.dx + renderBox.size.width,
+        position.dy + renderBox.size.height + 100,
+      ),
+      items: [
+        PopupMenuItem(
+          child: Row(
+            children: [
+              Icon(Icons.edit, size: 18, color: _primaryBlue),
+              const SizedBox(width: 8),
+              const Text('Edit'),
+            ],
+          ),
+          onTap: () => Future.delayed(
+            const Duration(milliseconds: 100),
+            () => _editShift(employee, day, shift),
+          ),
+        ),
+        PopupMenuItem(
+          child: Row(
+            children: [
+              Icon(Icons.copy, size: 18, color: _primaryBlue),
+              const SizedBox(width: 8),
+              const Text('Copy'),
+            ],
+          ),
+          onTap: () => _copyShiftToClipboard(employee, day, shift),
+        ),
+        PopupMenuItem(
+          child: Row(
+            children: [
+              const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+              const SizedBox(width: 8),
+              const Text('Delete', style: TextStyle(color: Colors.red)),
+            ],
+          ),
+          onTap: () => Future.delayed(
+            const Duration(milliseconds: 100),
+            () => _confirmDeleteShift(employee, day, shift),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Clipboard and cell interaction methods
+  bool _hasClipboard() {
+    return _clipboardShift != null;
+  }
+
+  void _moveShift(String sourceEmployeeName, String sourceDay, String targetEmployeeName, String targetDay, Shift shift) {
+    // Removed emoji print statement
+    // Removed emoji print statement
+    
+    final employeeList = _getEmployeeList();
+    
+    // Find source and target employees
+    final sourceEmployee = employeeList.firstWhere((e) => e.name == sourceEmployeeName);
+    final targetEmployee = employeeList.firstWhere((e) => e.name == targetEmployeeName);
+    
+    setState(() {
+      // Remove shift from source
+      sourceEmployee.shifts.remove(sourceDay);
+      // Removed emoji print statement
+      
+      // Add shift to target (create deep copy to avoid reference issues)
+      final shiftJson = shift.toJson();
+      final newShift = Shift.fromJson(shiftJson);
+      targetEmployee.shifts[targetDay] = newShift;
+      // Removed emoji print statement
+    });
+    
+    // Save current week data after modification
+    _saveCurrentWeekData();
+    widget.onRosterChanged(employeeList);
+    _notifyCurrentWeekDataChanged();
+    
+    // Verify the data was saved correctly
+    // Removed emoji print statement
+    for (final entry in targetEmployee.shifts.entries) {
+      // Removed emoji print statement
+    }
+    
+    // Show success message
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Icon(Icons.swap_horiz, color: Colors.green, size: 16),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Moved shift from ${sourceEmployeeName} (${sourceDay}) to ${targetEmployeeName} (${targetDay})',
+                style: const TextStyle(color: Colors.white),
               ),
             ),
+          ],
+        ),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  void _confirmDeleteShift(Employee employee, String day, Shift shift) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.delete, color: Colors.red, size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Delete Shift',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to delete this shift?',
+              style: TextStyle(fontSize: 16, color: _darkGray),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.withOpacity(0.2)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${employee.name} - $day',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.red,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    shift.isHoliday 
+                      ? 'Holiday' 
+                      : shift.startTime != null && shift.endTime != null
+                        ? '${_formatTime(shift.startTime!)} - ${_formatTime(shift.endTime!)}'
+                        : 'Shift',
+                    style: TextStyle(color: _darkGray),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'This action cannot be undone.',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.red.shade700,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _deleteShift(employee, day, shift);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
           ),
         ],
       ),
     );
+  }
+
+  void _deleteShift(Employee employee, String day, Shift shift) {
+    setState(() {
+      employee.shifts.remove(day);
+    });
+    
+    final employeeList = _getEmployeeList();
+    
+    // Save current week data after modification
+    _saveCurrentWeekData();
+    widget.onRosterChanged(employeeList);
+    _notifyCurrentWeekDataChanged();
+    
+    // Show success message
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Icon(Icons.delete, color: Colors.red, size: 16),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Deleted shift for ${employee.name} ($day)',
+              style: const TextStyle(color: Colors.white),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  void _copyShiftToClipboard(Employee employee, String day, Shift shift) {
+    // Removed emoji print statement
+    setState(() {
+      // Create a deep copy to avoid reference issues
+      final shiftJson = shift.toJson();
+      _clipboardShift = Shift.fromJson(shiftJson);
+      // Removed emoji print statement
+    });
+  }
+
+  Future<void> _addShiftToCell(Employee employee, String day) async {
+    if (_hasClipboard()) {
+      // Paste from clipboard
+      await _pasteShiftToCell(employee, day);
+    } else {
+      // Create new shift
+      final newShift = await widget.onEdit(context, null);
+      if (newShift != null) {
+        setState(() {
+          employee.shifts[day] = newShift;
+        });
+        
+        final employeeList = _getEmployeeList();
+        
+        // Save current week data after modification
+        _saveCurrentWeekData();
+        widget.onRosterChanged(employeeList);
+        _notifyCurrentWeekDataChanged();
+      }
+    }
+  }
+
+  Future<void> _pasteShiftToCell(Employee employee, String day) async {
+    if (_clipboardShift != null) {
+      // Removed emoji print statement
+      setState(() {
+        // Create a deep copy to avoid reference issues
+        final shiftJson = _clipboardShift!.toJson();
+        final newShift = Shift.fromJson(shiftJson);
+        employee.shifts[day] = newShift;
+        // Removed emoji print statement
+        // Clear clipboard after paste
+        _clipboardShift = null;
+      });
+      
+      final employeeList = _getEmployeeList();
+      
+      // Save current week data after modification
+      _saveCurrentWeekData();
+      widget.onRosterChanged(employeeList);
+      _notifyCurrentWeekDataChanged();
+    }
   }
 
   // Helper methods
@@ -640,6 +1487,35 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
 
   // Action methods
   void _navigateWeek(int direction) {
+    // Safety check: Week-specific rosters should never use this method
+    final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
+    if (isWeekSpecificRoster) {
+      // Removed emoji print statement
+      return;
+    }
+    
+    final oldWeekKey = _getWeekKey(_currentWeek);
+    // Removed emoji print statement
+    
+    // Save current week's data before navigation
+    _saveCurrentWeekData();
+    
+    // Store current week's shifts for copying to next week (if going forward)
+    Map<String, Map<String, Shift>> currentWeekShifts = {};
+    if (direction == 1) {
+      final employeeList = _getEmployeeList();
+      for (final employee in employeeList) {
+        final shiftsCopy = <String, Shift>{};
+        // Create deep copies for copying
+        for (final entry in employee.shifts.entries) {
+          final shiftJson = entry.value.toJson();
+          shiftsCopy[entry.key] = Shift.fromJson(shiftJson);
+        }
+        currentWeekShifts[employee.name] = shiftsCopy;
+      }
+      // Removed emoji print statement
+    }
+    
     setState(() {
       _currentWeek = _currentWeek.add(Duration(days: 7 * direction));
       // Update week dates
@@ -647,11 +1523,298 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         widget.weekDates[_days[i]] = _currentWeek.add(Duration(days: i));
       }
     });
-    // Notify parent of week change
-    widget.onRosterChanged(widget.employees);
+    
+    // Load data for the new week
+    final newWeekKey = _getWeekKey(_currentWeek);
+    bool isNewWeek = !_weeklyData.containsKey(newWeekKey);
+    // Removed emoji print statement
+    
+    if (isNewWeek && direction == 1 && currentWeekShifts.isNotEmpty) {
+      // New week going forward - offer to create a new roster or just copy data
+      _showCreateNewWeekDialog(newWeekKey, currentWeekShifts);
+    } else {
+      // Load existing week data or start with empty week
+      // Removed emoji print statement
+      _loadCurrentWeekData();
+    }
+    
+    // Notify parent of week change and current data
+    final employeeList = _getEmployeeList();
+    widget.onRosterChanged(employeeList);
+    _notifyCurrentWeekDataChanged();
+  }
+
+  // Show dialog to ask user if they want to create a new roster for the next week
+  void _showCreateNewWeekDialog(String newWeekKey, Map<String, Map<String, Shift>> currentWeekShifts) {
+    // Extract week number from current roster name
+    final currentRosterName = widget.rosterName;
+    final weekMatch = RegExp(r'Week (\d+)').firstMatch(currentRosterName);
+    final currentWeekNumber = weekMatch != null ? int.parse(weekMatch.group(1)!) : null;
+    final nextWeekNumber = currentWeekNumber != null ? currentWeekNumber + 1 : null;
+    final suggestedName = nextWeekNumber != null ? 'Week $nextWeekNumber' : 'Next Week';
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: _primaryBlue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.calendar_month, color: _primaryBlue, size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Create New Week?',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'You\'re moving to a new week. Would you like to:',
+              style: TextStyle(fontSize: 16, color: _darkGray),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _primaryBlue.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _primaryBlue.withOpacity(0.2)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.add_circle, color: _primaryBlue, size: 16),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Create "$suggestedName" roster',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: _primaryBlue,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'This will create a separate roster entry that appears in your roster list, using the current week\'s schedule as a template.',
+                    style: TextStyle(color: _darkGray, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _lightGray,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _darkGray.withOpacity(0.2)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.copy, color: _darkGray, size: 16),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Just continue in current roster',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: _darkGray,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Copy the schedule to next week within this roster only.',
+                    style: TextStyle(color: _darkGray, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // Just copy data within current roster
+              _copyDataToCurrentWeek(newWeekKey, currentWeekShifts);
+            },
+            child: const Text('Continue Here'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // Create new roster and navigate to it
+              _createNewWeekRoster(suggestedName, currentWeekShifts);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primaryBlue,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Create $suggestedName'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Copy data to current week (existing behavior)
+  void _copyDataToCurrentWeek(String newWeekKey, Map<String, Map<String, Shift>> currentWeekShifts) {
+    // Removed emoji print statement
+    _weeklyData[newWeekKey] = {};
+    final employeeList = _getEmployeeList();
+    for (final employee in employeeList) {
+      final employeeShifts = currentWeekShifts[employee.name] ?? <String, Shift>{};
+      _weeklyData[newWeekKey]![employee.name] = employeeShifts;
+      
+      // Update employee shifts with copied data
+      employee.shifts.clear();
+      employee.shifts.addAll(employeeShifts);
+      // Removed emoji print statement
+    }
+    
+    // Show notification that shifts were copied
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: _primaryBlue.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Icon(Icons.copy, color: _primaryBlue, size: 16),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Previous week\'s schedule copied to current week',
+              style: TextStyle(color: Colors.white),
+            ),
+          ],
+        ),
+        backgroundColor: _primaryBlue,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  // Create new roster for next week
+  Future<void> _createNewWeekRoster(String newRosterName, Map<String, Map<String, Shift>> currentWeekShifts) async {
+    try {
+      // Create employee list with copied shifts
+      final newEmployees = <Employee>[];
+      final employeeList = _getEmployeeList();
+      for (final employee in employeeList) {
+        final employeeShifts = currentWeekShifts[employee.name] ?? <String, Shift>{};
+        final newEmployee = Employee(
+          name: employee.name,
+          shifts: Map<String, Shift>.from(employeeShifts),
+          accumulatedWorkedHours: employee.accumulatedWorkedHours,
+          accumulatedTotalHours: employee.accumulatedTotalHours,
+          accumulatedHolidayHours: employee.accumulatedHolidayHours,
+          employeeColor: employee.employeeColor,
+          rosterStartDate: _currentWeek, // Set to new week's start date
+          rosterEndDate: _currentWeek.add(const Duration(days: 6)), // End of new week
+        );
+        newEmployees.add(newEmployee);
+      }
+
+      // Create the new roster using RosterStorage
+      await RosterStorage.createRoster(newRosterName, newEmployees);
+      
+      // Show success message and offer to navigate to new roster
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Created "$newRosterName" roster with current schedule',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            margin: const EdgeInsets.all(16),
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Open',
+              textColor: Colors.white,
+              onPressed: () {
+                // Navigate to the new roster
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => RosterPage(rosterName: newRosterName)),
+                );
+              },
+            ),
+          ),
+        );
+        
+        // Also copy data to current week for immediate use
+        _copyDataToCurrentWeek(_getWeekKey(_currentWeek), currentWeekShifts);
+      }
+    } catch (e) {
+      // Removed emoji print statement
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error creating new roster: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        // Fallback to copying data within current roster
+        _copyDataToCurrentWeek(_getWeekKey(_currentWeek), currentWeekShifts);
+      }
+    }
   }
 
   void _goToCurrentWeek() {
+    // Safety check: Week-specific rosters should never use this method
+    final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
+    if (isWeekSpecificRoster) {
+      // Removed emoji print statement
+      return;
+    }
+    
+    // Save current week's data before navigation
+    _saveCurrentWeekData();
+    
     final now = DateTime.now();
     final monday = now.subtract(Duration(days: now.weekday - 1));
     setState(() {
@@ -660,8 +1823,14 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         widget.weekDates[_days[i]] = monday.add(Duration(days: i));
       }
     });
-    // Notify parent of week change
-    widget.onRosterChanged(widget.employees);
+    
+    // Load data for current week
+    _loadCurrentWeekData();
+    
+    // Notify parent of week change and current data
+    final employeeList = _getEmployeeList();
+    widget.onRosterChanged(employeeList);
+    _notifyCurrentWeekDataChanged();
   }
 
   Future<void> _editShift(Employee employee, String day, Shift? shift) async {
@@ -670,138 +1839,259 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       setState(() {
         employee.shifts[day] = editedShift;
       });
-      widget.onRosterChanged(widget.employees);
+      
+      final employeeList = _getEmployeeList();
+      
+      // Save current week data after modification
+      _saveCurrentWeekData();
+      widget.onRosterChanged(employeeList);
+      _notifyCurrentWeekDataChanged();
     }
   }
 
   void _showEmployeeProfile(Employee employee) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('${employee.name} Profile'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Total Hours: ${employee.totalWorkedHours.toStringAsFixed(1)}'),
-            Text('Paid Hours: ${employee.totalPaidHours.toStringAsFixed(1)}'),
-            Text('Holiday Hours: ${employee.holidayHoursEarnedThisWeek.toStringAsFixed(1)}'),
-            Text('Break Hours: ${employee.breakHours.toStringAsFixed(1)}'),
-          ],
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: _white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header with avatar
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: _primaryBlue,
+                    child: Text(
+                      employee.name.isNotEmpty ? employee.name[0].toUpperCase() : '?',
+                      style: const TextStyle(
+                        color: _white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          employee.name,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: _darkGray,
+                          ),
+                        ),
+                        Text(
+                          'Employee Profile',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: _darkGray.withOpacity(0.7),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 24),
+              
+              // Stats cards
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _lightGray,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: [
+                    _buildStatRow('Total Hours', '${employee.totalWorkedHours.toStringAsFixed(1)} hrs', Icons.access_time),
+                    const SizedBox(height: 12),
+                    _buildStatRow('Paid Hours', '${employee.totalPaidHours.toStringAsFixed(1)} hrs', Icons.attach_money),
+                    const SizedBox(height: 12),
+                    _buildStatRow('Holiday Hours', '${employee.holidayHoursEarnedThisWeek.toStringAsFixed(1)} hrs', Icons.beach_access),
+                    const SizedBox(height: 12),
+                    _buildStatRow('Break Time', '${employee.breakHours.toStringAsFixed(1)} hrs', Icons.coffee),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: 24),
+              
+              // Close button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _primaryBlue,
+                    foregroundColor: _white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text('Close', style: TextStyle(fontSize: 16)),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Future<void> _addShift() async {
-    // Show dialog to select employee and day first
-    final result = await showDialog<Map<String, String>>(
-      context: context,
-      builder: (context) => _AddShiftTargetDialog(employees: widget.employees),
-    );
-    
-    if (result != null) {
-      final employeeName = result['employee']!;
-      final day = result['day']!;
-      final employee = widget.employees.firstWhere((e) => e.name == employeeName);
-      
-      final newShift = await widget.onEdit(context, null);
-      if (newShift != null) {
-        setState(() {
-          employee.shifts[day] = newShift;
-        });
-        widget.onRosterChanged(widget.employees);
-      }
-    }
-  }
-
-  void _pasteShift() {
-    // For now, show a message that this feature is coming soon
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Paste shift functionality coming soon')),
-    );
-  }
-}
-
-// Helper dialog for selecting where to add a shift
-class _AddShiftTargetDialog extends StatefulWidget {
-  final List<Employee> employees;
-  
-  const _AddShiftTargetDialog({required this.employees});
-
-  @override
-  State<_AddShiftTargetDialog> createState() => _AddShiftTargetDialogState();
-}
-
-class _AddShiftTargetDialogState extends State<_AddShiftTargetDialog> {
-  String? selectedEmployee;
-  String? selectedDay;
-  
-  static const List<String> _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Add Shift'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          DropdownButtonFormField<String>(
-            decoration: const InputDecoration(labelText: 'Employee'),
-            value: selectedEmployee,
-            items: widget.employees.map((employee) {
-              return DropdownMenuItem(
-                value: employee.name,
-                child: Text(employee.name),
-              );
-            }).toList(),
-            onChanged: (value) {
-              setState(() {
-                selectedEmployee = value;
-              });
-            },
+  Widget _buildStatRow(String label, String value, IconData icon) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: _primaryBlue.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
           ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            decoration: const InputDecoration(labelText: 'Day'),
-            value: selectedDay,
-            items: _days.map((day) {
-              return DropdownMenuItem(
-                value: day,
-                child: Text(day),
-              );
-            }).toList(),
-            onChanged: (value) {
-              setState(() {
-                selectedDay = value;
-              });
-            },
+          child: Icon(
+            icon,
+            color: _primaryBlue,
+            size: 20,
           ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
         ),
-        ElevatedButton(
-          onPressed: selectedEmployee != null && selectedDay != null
-            ? () {
-                Navigator.of(context).pop({
-                  'employee': selectedEmployee!,
-                  'day': selectedDay!,
-                });
-              }
-            : null,
-          child: const Text('Continue'),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: _darkGray,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: _darkGray,
+          ),
         ),
       ],
     );
+  }
+
+  void _navigateToWeekRoster(String rosterName) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => RosterPage(rosterName: rosterName)),
+    );
+  }
+
+  // Create a new week roster automatically and navigate to it
+  Future<void> _createAndNavigateToWeekRoster(String newRosterName, int direction) async {
+    try {
+      // Double-check if the roster actually exists before creating
+      // This prevents overwriting existing rosters
+      print('Double-checking if $newRosterName exists before creating...');
+      final prefs = await SharedPreferences.getInstance();
+      final rosterNames = prefs.getStringList('roster_names') ?? <String>[];
+      if (rosterNames.contains(newRosterName)) {
+        print('Roster $newRosterName already exists, navigating instead of creating');
+        _navigateToWeekRoster(newRosterName);
+        return;
+      }
+      
+      print('Creating new roster: $newRosterName');
+      // Create employee list with current shifts as template
+      final newEmployees = <Employee>[];
+      final employeeList = _getEmployeeList();
+      for (final employee in employeeList) {
+        // Create deep copies of current shifts
+        final shiftsCopy = <String, Shift>{};
+        for (final entry in employee.shifts.entries) {
+          final shiftJson = entry.value.toJson();
+          shiftsCopy[entry.key] = Shift.fromJson(shiftJson);
+        }
+        
+        final newEmployee = Employee(
+          name: employee.name,
+          shifts: shiftsCopy,
+          accumulatedWorkedHours: employee.accumulatedWorkedHours,
+          accumulatedTotalHours: employee.accumulatedTotalHours,
+          accumulatedHolidayHours: employee.accumulatedHolidayHours,
+          employeeColor: employee.employeeColor,
+          rosterStartDate: DateTime.now(), // Will be updated when roster is loaded
+          rosterEndDate: DateTime.now().add(const Duration(days: 6)),
+        );
+        newEmployees.add(newEmployee);
+      }
+
+      // Create the new roster using RosterStorage
+      print('Calling RosterStorage.createRoster for $newRosterName...');
+      await RosterStorage.createRoster(newRosterName, newEmployees);
+      print('Roster $newRosterName created successfully');
+      
+      // Show brief success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Created "$newRosterName" roster',
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            margin: const EdgeInsets.all(16),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      
+      // Navigate to the new roster
+      _navigateToWeekRoster(newRosterName);
+    } catch (e) {
+      // Removed emoji print statement
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error creating "$newRosterName": $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 }

@@ -19,6 +19,8 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
   late TextEditingController startTimeController;
   late TextEditingController endTimeController;
   late TextEditingController holidayHoursController;
+  late FocusNode startTimeFocus;
+  late FocusNode endTimeFocus;
   Color? selectedColor;
   bool use24HourFormat = true; // Default to 24-hour format
 
@@ -98,15 +100,49 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
   }
 
   void _updateTimeFromInput(String input, bool isStartTime) {
-    final time = _parseTimeInput(input);
-    if (time != null) {
-      setState(() {
-        if (isStartTime) {
-          startTime = time;
-        } else {
-          endTime = time;
-        }
-      });
+    // Auto-format: add colon when user types 2 digits
+    if (input.length == 2 && !input.contains(':')) {
+      final controller = isStartTime ? startTimeController : endTimeController;
+      final formattedInput = input + ':';
+      controller.value = TextEditingValue(
+        text: formattedInput,
+        selection: TextSelection.collapsed(offset: formattedInput.length),
+      );
+      return; // Don't parse yet, let user finish typing
+    }
+    
+    // Auto-advance: when user completes time format, move to next field
+    if (input.length >= 5 && input.contains(':')) {
+      final time = _parseTimeInput(input);
+      if (time != null) {
+        setState(() {
+          if (isStartTime) {
+            startTime = time;
+            // Auto-focus to end time field
+            Future.delayed(const Duration(milliseconds: 100), () {
+              endTimeFocus.requestFocus();
+            });
+          } else {
+            endTime = time;
+            // Auto-focus away from time fields when both are complete
+            Future.delayed(const Duration(milliseconds: 100), () {
+              FocusScope.of(context).unfocus();
+            });
+          }
+        });
+      }
+    } else {
+      // Try to parse partial input
+      final time = _parseTimeInput(input);
+      if (time != null) {
+        setState(() {
+          if (isStartTime) {
+            startTime = time;
+          } else {
+            endTime = time;
+          }
+        });
+      }
     }
   }
 
@@ -129,6 +165,10 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
     startTimeController = TextEditingController(text: _formatTimeForDisplay(startTime));
     endTimeController = TextEditingController(text: _formatTimeForDisplay(endTime));
     holidayHoursController = TextEditingController(text: widget.shift?.customHolidayHours?.toString() ?? '8.0');
+    
+    // Initialize focus nodes
+    startTimeFocus = FocusNode();
+    endTimeFocus = FocusNode();
 
     // Update UI validation state when text changes
     roleController.addListener(() => setState(() {}));
@@ -141,6 +181,8 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
     startTimeController.dispose();
     endTimeController.dispose();
     holidayHoursController.dispose();
+    startTimeFocus.dispose();
+    endTimeFocus.dispose();
     super.dispose();
   }
 
@@ -410,6 +452,9 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                             const SizedBox(height: 8),
                             TextField(
                               controller: startTimeController,
+                              focusNode: startTimeFocus,
+                              keyboardType: TextInputType.number,
+                              textInputAction: TextInputAction.next,
                               decoration: InputDecoration(
                                 hintText: use24HourFormat ? '09:00' : '9:00 AM',
                                 border: OutlineInputBorder(
@@ -460,6 +505,9 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                             const SizedBox(height: 8),
                             TextField(
                               controller: endTimeController,
+                              focusNode: endTimeFocus,
+                              keyboardType: TextInputType.number,
+                              textInputAction: TextInputAction.done,
                               decoration: InputDecoration(
                                 hintText: use24HourFormat ? '17:00' : '5:00 PM',
                                 border: OutlineInputBorder(

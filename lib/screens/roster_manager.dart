@@ -30,17 +30,11 @@ class _RosterManagerState extends State<RosterManager> {
   Future<void> _createRoster() async {
     print('🔍 _createRoster: Starting...');
     try {
-      // First, let user select which week to create roster for
-      final selectedWeek = await _showWeekSelectionDialog();
-      if (selectedWeek == null) {
-        print('❌ User cancelled week selection');
-        return;
-      }
-      print('✅ Selected week: ${selectedWeek['label']}');
-
-      final monday = selectedWeek['monday'] as DateTime;
-      final sunday = selectedWeek['sunday'] as DateTime;
-
+      // Use current week instead of asking user to select
+      final now = DateTime.now();
+      final monday = now.subtract(Duration(days: now.weekday - 1));
+      final sunday = monday.add(const Duration(days: 6));
+      
       // Calculate week number for default name
       final firstDayOfYear = DateTime(monday.year, 1, 1);
       final weekNumber = ((monday.difference(firstDayOfYear).inDays +
@@ -128,240 +122,6 @@ class _RosterManagerState extends State<RosterManager> {
       print('❌ Error in _createRoster: $e');
       print('❌ Stack trace: $stackTrace');
     }
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
-  }
-
-  Future<Map<String, dynamic>?> _showWeekSelectionDialog() async {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    
-    // Generate options for the next 8 weeks
-    final List<Map<String, dynamic>> weekOptions = [];
-    
-    for (int i = 0; i < 8; i++) {
-      final targetDate = today.add(Duration(days: i * 7));
-      final monday = targetDate.subtract(Duration(days: targetDate.weekday - 1));
-      final sunday = monday.add(const Duration(days: 6));
-      
-      // Calculate week number
-      final firstDayOfYear = DateTime(monday.year, 1, 1);
-      final weekNumber = ((monday.difference(firstDayOfYear).inDays +
-              firstDayOfYear.weekday - 1) / 7)
-          .ceil();
-      
-      String label;
-      if (i == 0) {
-        label = 'This Week (Week $weekNumber)';
-      } else if (i == 1) {
-        label = 'Next Week (Week $weekNumber)';
-      } else {
-        label = 'Week $weekNumber';
-      }
-      
-      weekOptions.add({
-        'label': label,
-        'subtitle': '${_formatDate(monday)} - ${_formatDate(sunday)}',
-        'monday': monday,
-        'sunday': sunday,
-        'weekNumber': weekNumber,
-        'isCurrentWeek': i == 0,
-        'isNextWeek': i == 1,
-      });
-    }
-
-    return showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (context) => AlertDialog(
-        elevation: 24,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        backgroundColor: Colors.white,
-        titlePadding: const EdgeInsets.all(24),
-        contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-        actionsPadding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-        title: Container(
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.green.shade400, Colors.green.shade600],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.green.shade200,
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Icon(Icons.calendar_today, color: Colors.white, size: 24),
-              ),
-              const SizedBox(width: 16),
-              const Expanded(
-                child: Text(
-                  'Select Week',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 22,
-                    color: Color(0xFF1A1A1A),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        content: SizedBox(
-          width: 500,
-          height: 400,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.blue.shade50, Colors.indigo.shade50],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blue.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade100,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Icon(Icons.info, size: 16, color: Colors.blue.shade700),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Choose which week you want to create the roster for',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.blue.shade700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              
-              Expanded(
-                child: ListView.builder(
-                  itemCount: weekOptions.length,
-                  itemBuilder: (context, index) {
-                    final week = weekOptions[index];
-                    final isCurrentWeek = week['isCurrentWeek'] as bool;
-                    final isNextWeek = week['isNextWeek'] as bool;
-                    
-                    Color primaryColor = Colors.grey.shade700;
-                    Color accentColor = Colors.grey.shade100;
-                    IconData icon = Icons.calendar_month;
-                    
-                    if (isCurrentWeek) {
-                      primaryColor = Colors.green.shade700;
-                      accentColor = Colors.green.shade100;
-                      icon = Icons.today;
-                    } else if (isNextWeek) {
-                      primaryColor = Colors.blue.shade700;
-                      accentColor = Colors.blue.shade100;
-                      icon = Icons.skip_next;
-                    }
-                    
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: primaryColor.withOpacity(0.3)),
-                        borderRadius: BorderRadius.circular(12),
-                        color: accentColor.withOpacity(0.3),
-                      ),
-                      child: InkWell(
-                        onTap: () => Navigator.pop(context, week),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: accentColor,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Icon(icon, color: primaryColor, size: 20),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      week['label'] as String,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 16,
-                                        color: primaryColor,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      week['subtitle'] as String,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: primaryColor.withOpacity(0.7),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Icon(Icons.arrow_forward_ios, color: primaryColor.withOpacity(0.5), size: 16),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            child: Text(
-              'Cancel',
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<String?> _showNewRosterDialog(String defaultName) async {
@@ -560,15 +320,15 @@ class _RosterManagerState extends State<RosterManager> {
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [Colors.orange.shade50, Colors.amber.shade50],
+                          colors: [Colors.blue.shade50, Colors.blue.shade100],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.orange.shade300),
+                        border: Border.all(color: Colors.blue.shade300),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.orange.shade100,
+                            color: Colors.blue.shade100,
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           ),
@@ -579,10 +339,10 @@ class _RosterManagerState extends State<RosterManager> {
                           Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                              color: Colors.orange.shade100,
+                              color: Colors.blue.shade100,
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: Icon(Icons.warning, size: 16, color: Colors.orange.shade700),
+                            child: Icon(Icons.warning, size: 16, color: Colors.blue.shade700),
                           ),
                           const SizedBox(width: 10),
                           Text(
@@ -590,7 +350,7 @@ class _RosterManagerState extends State<RosterManager> {
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: Colors.orange.shade700,
+                              color: Colors.blue.shade700,
                             ),
                           ),
                         ],
@@ -845,10 +605,10 @@ class _RosterManagerState extends State<RosterManager> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.orange.shade100,
+                  color: Colors.blue.shade100,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(Icons.people, color: Colors.orange.shade700),
+                child: Icon(Icons.people, color: Colors.blue.shade700),
               ),
               const SizedBox(width: 12),
               const Text(
@@ -875,22 +635,22 @@ class _RosterManagerState extends State<RosterManager> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
+                    color: Colors.blue.shade50,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.orange.shade200),
+                    border: Border.all(color: Colors.blue.shade200),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.group, color: Colors.orange.shade700, size: 20),
+                          Icon(Icons.group, color: Colors.blue.shade700, size: 20),
                           const SizedBox(width: 8),
                           Text(
                             'Staff Names',
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
-                              color: Colors.orange.shade700,
+                              color: Colors.blue.shade700,
                             ),
                           ),
                         ],
@@ -907,7 +667,7 @@ class _RosterManagerState extends State<RosterManager> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: Colors.orange.shade400, width: 2),
+                            borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
                           ),
                           filled: true,
                           fillColor: Colors.white,
@@ -983,7 +743,7 @@ class _RosterManagerState extends State<RosterManager> {
             ElevatedButton(
               onPressed: () => Navigator.pop(context, ctl.text),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange.shade600,
+                backgroundColor: Colors.blue.shade600,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -1058,14 +818,14 @@ class _RosterManagerState extends State<RosterManager> {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Colors.orange.shade400, Colors.orange.shade600],
+                        colors: [Colors.blue.shade400, Colors.blue.shade600],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.orange.shade200,
+                          color: Colors.blue.shade200,
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -1098,22 +858,22 @@ class _RosterManagerState extends State<RosterManager> {
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Colors.amber.shade50, Colors.orange.shade50],
+                        colors: [Colors.blue.shade50, Colors.blue.shade100],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.orange.shade200),
+                      border: Border.all(color: Colors.blue.shade200),
                     ),
                     child: Row(
                       children: [
                         Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: Colors.orange.shade100,
+                            color: Colors.blue.shade100,
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: Icon(Icons.info, size: 16, color: Colors.orange.shade700),
+                          child: Icon(Icons.info, size: 16, color: Colors.blue.shade700),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -1122,7 +882,7 @@ class _RosterManagerState extends State<RosterManager> {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
-                              color: Colors.orange.shade700,
+                              color: Colors.blue.shade700,
                             ),
                           ),
                         ),
@@ -1397,16 +1157,16 @@ class _RosterManagerState extends State<RosterManager> {
                                     Container(
                                       padding: const EdgeInsets.all(6),
                                       decoration: BoxDecoration(
-                                        color: Colors.orange.shade100,
+                                        color: Colors.blue.shade100,
                                         borderRadius: BorderRadius.circular(6),
                                       ),
-                                      child: Icon(Icons.delete_sweep, color: Colors.orange.shade700, size: 16),
+                                      child: Icon(Icons.delete_sweep, color: Colors.blue.shade700, size: 16),
                                     ),
                                     const SizedBox(width: 12),
                                     const Text('Trash emptied'),
                                   ],
                                 ),
-                                backgroundColor: Colors.orange.shade50,
+                                backgroundColor: Colors.blue.shade50,
                                 behavior: SnackBarBehavior.floating,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
@@ -1665,12 +1425,10 @@ class _RosterManagerState extends State<RosterManager> {
 
   /// Copy roster with employees only (no shifts)
   Future<void> _copyRosterEmployeesOnly(String sourceRosterName, String newRosterName) async {
-    // First, let user select which week to create the copy for
-    final selectedWeek = await _showWeekSelectionDialog();
-    if (selectedWeek == null) return;
-
-    final monday = selectedWeek['monday'] as DateTime;
-    final sunday = selectedWeek['sunday'] as DateTime;
+    // Use current week instead of asking user to select
+    final now = DateTime.now();
+    final monday = now.subtract(Duration(days: now.weekday - 1));
+    final sunday = monday.add(const Duration(days: 6));
     
     // Load the source roster data
     final sourceEmployees = await RosterStorage.loadRoster(sourceRosterName);
@@ -1880,10 +1638,10 @@ class _RosterManagerState extends State<RosterManager> {
                   Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: Colors.orange.shade100,
+                      color: Colors.blue.shade100,
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Icon(Icons.delete, color: Colors.orange.shade700, size: 16),
+                    child: Icon(Icons.delete, color: Colors.blue.shade700, size: 16),
                   ),
                   const SizedBox(width: 12),
                   Expanded(child: Text('Moved "$rosterName" to trash')),
@@ -1893,7 +1651,7 @@ class _RosterManagerState extends State<RosterManager> {
                       _showRestoreDialog();
                     },
                     style: TextButton.styleFrom(
-                      foregroundColor: Colors.orange.shade700,
+                      foregroundColor: Colors.blue.shade700,
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     ),
                     child: const Text(
@@ -1903,7 +1661,7 @@ class _RosterManagerState extends State<RosterManager> {
                   ),
                 ],
               ),
-              backgroundColor: Colors.orange.shade50,
+              backgroundColor: Colors.blue.shade50,
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),

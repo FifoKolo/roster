@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../models/employee_model.dart';
 import '../services/pdf_service.dart';
 import '../widgets/add_shift_dialog.dart';
-import '../widgets/roster_table.dart';
 import '../widgets/modern_roster_table.dart';
 import '../services/roster_storage.dart';
 import '../services/irish_bank_holidays.dart';
@@ -19,7 +18,10 @@ class RosterPage extends StatefulWidget {
 class _RosterPageState extends State<RosterPage> {
   List<Employee> employees = [];
   Map<String, DateTime> weekDates = {};
-  bool _useModernView = true; // Toggle between classic and modern view
+
+  // Current week's data for PDF generation
+  List<Employee> currentWeekEmployees = [];
+  DateTime currentWeekDate = DateTime.now();
 
   // NEW: appearance state
   Color? headerColor;
@@ -64,6 +66,21 @@ class _RosterPageState extends State<RosterPage> {
 
   Color? _c(Object? v) => (v is int) ? Color(v) : null;
 
+  // Callback to receive current week data from ModernRosterTable
+  void _onCurrentWeekDataChanged(List<Employee> weekEmployees, DateTime weekDate) {
+    print('📅 Current week data updated: Week of ${weekDate.toIso8601String().split('T')[0]}, ${weekEmployees.length} employees');
+    
+    // Use Future.microtask to defer setState until after the current build cycle
+    Future.microtask(() {
+      if (mounted) {
+        setState(() {
+          currentWeekEmployees = List.from(weekEmployees);
+          currentWeekDate = weekDate;
+        });
+      }
+    });
+  }
+
   void _initWeekDates() {
     // This will be updated when roster data is loaded
     // Default to current week for now
@@ -93,7 +110,21 @@ class _RosterPageState extends State<RosterPage> {
   }
 
   Future<void> _saveRoster(List<Employee> employees) async {
-    print('🔍 _saveRoster called with ${employees.length} employees');
+    print('🔍 _saveRoster called with ${employees.length} employees for roster: ${widget.rosterName}');
+    
+    // Check if this is a week-specific roster - if so, skip saving here as the table handles it
+    final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
+    if (isWeekSpecificRoster) {
+      print('📌 Week-specific roster detected: ${widget.rosterName} - updating local state with deep copies');
+      // Update local state with deep copies to maintain independence for week-specific rosters
+      setState(() {
+        this.employees = employees.map((emp) {
+          final empJson = emp.toJson();
+          return Employee.fromJson(empJson);
+        }).toList();
+      });
+      return;
+    }
     
     // Debug: Print each employee's current hours and holiday calculations
     for (final emp in employees) {
@@ -114,8 +145,20 @@ class _RosterPageState extends State<RosterPage> {
     print('✅ Roster saved successfully');
   }
 
-  Future<void> _exportPublicPdf(List<Employee> employees) async {
+  Future<void> _exportPublicPdf(List<Employee> fallbackEmployees) async {
+    // Use current week's data if available, otherwise fallback to state employees
+    final employeesToUse = currentWeekEmployees.isNotEmpty ? currentWeekEmployees : fallbackEmployees;
+    
     // Public PDF for staff - only shows schedule information
+    print('📄 Exporting Public PDF with ${employeesToUse.length} employees');
+    print('📅 Current week: ${currentWeekDate.toIso8601String().split('T')[0]}');
+    for (final emp in employeesToUse) {
+      print('  - ${emp.name}: ${emp.shifts.length} shifts');
+      for (final shift in emp.shifts.entries) {
+        print('    - ${shift.key}: ${shift.value.toJson()}');
+      }
+    }
+    
     final style = {
       'headerColor': headerColor?.value,
       'headerTextColor': headerTextColor?.value,
@@ -123,11 +166,23 @@ class _RosterPageState extends State<RosterPage> {
       'dayOffBgColor': dayOffBgColor?.value,
       'holidayBgColor': holidayBgColor?.value,
     };
-    await PdfService.sharePublicRosterPdf(context, employees, weekDates, style: style);
+    await PdfService.sharePublicRosterPdf(context, employeesToUse, weekDates, style: style);
   }
 
-  Future<void> _exportPrivatePdf(List<Employee> employees) async {
+  Future<void> _exportPrivatePdf(List<Employee> fallbackEmployees) async {
+    // Use current week's data if available, otherwise fallback to state employees
+    final employeesToUse = currentWeekEmployees.isNotEmpty ? currentWeekEmployees : fallbackEmployees;
+    
     // Private PDF for management - includes hours and accumulated data
+    print('📄 Exporting Private PDF with ${employeesToUse.length} employees');
+    print('📅 Current week: ${currentWeekDate.toIso8601String().split('T')[0]}');
+    for (final emp in employeesToUse) {
+      print('  - ${emp.name}: ${emp.shifts.length} shifts');
+      for (final shift in emp.shifts.entries) {
+        print('    - ${shift.key}: ${shift.value.toJson()}');
+      }
+    }
+    
     final style = {
       'headerColor': headerColor?.value,
       'headerTextColor': headerTextColor?.value,
@@ -135,7 +190,7 @@ class _RosterPageState extends State<RosterPage> {
       'dayOffBgColor': dayOffBgColor?.value,
       'holidayBgColor': holidayBgColor?.value,
     };
-    await PdfService.sharePrivateRosterPdf(context, employees, weekDates, style: style);
+    await PdfService.sharePrivateRosterPdf(context, employeesToUse, weekDates, style: style);
   }
 
   Future<Shift?> _openEditDialog(BuildContext context, Shift? currentShift) async {
@@ -151,16 +206,6 @@ class _RosterPageState extends State<RosterPage> {
       appBar: AppBar(
         title: Text(widget.rosterName),
         actions: [
-          // Toggle between modern and classic view
-          IconButton(
-            tooltip: _useModernView ? 'Switch to Classic View' : 'Switch to Modern View',
-            icon: Icon(_useModernView ? Icons.table_rows : Icons.dashboard),
-            onPressed: () {
-              setState(() {
-                _useModernView = !_useModernView;
-              });
-            },
-          ),
           // NEW: palette customization
           IconButton(
             tooltip: 'Customize appearance',
@@ -182,6 +227,8 @@ class _RosterPageState extends State<RosterPage> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFF2196F3), // Primary blue to match the app theme
+        foregroundColor: Colors.white,
         onPressed: () async {
           print('🔍 Add employee button pressed');
           final result = await _showAddEmployeeDialog(context);
@@ -313,70 +360,108 @@ class _RosterPageState extends State<RosterPage> {
                   final currentEmployees = snapshot.data!;
                   print('✅ StreamBuilder received ${currentEmployees.length} employees');
                   
-                  // CRITICAL: Only update state if this is initial load OR external change
-                  bool shouldUpdate = false;
+                  // Check if this is a week-specific roster
+                  final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
                   
-                  // Initial load case - employees list is empty
-                  if (employees.isEmpty && currentEmployees.isNotEmpty) {
-                    print('🔄 Initial load - setting employees');
-                    shouldUpdate = true;
-                  }
-                  // Length change from external source (not local addition)
-                  else if (employees.length != currentEmployees.length) {
-                    // Check if this is a new employee we just added locally
-                    bool isLocalAddition = employees.length == currentEmployees.length - 1;
-                    if (!isLocalAddition) {
-                      print('🔄 Employee count changed externally');
-                      shouldUpdate = true;
-                    } else {
-                      print('✅ Local addition detected - not overwriting');
-                    }
-                  }
-                  // Check for actual data changes (shifts, etc.)
-                  else if (employees.length == currentEmployees.length && employees.isNotEmpty) {
-                    for (int i = 0; i < employees.length; i++) {
-                      if (employees[i].name != currentEmployees[i].name || 
-                          employees[i].shifts.length != currentEmployees[i].shifts.length) {
-                        print('🔄 Employee data changed externally');
-                        shouldUpdate = true;
-                        break;
-                      }
-                    }
-                  }
-                  
-                  if (shouldUpdate) {
-                    print('🔄 Updating state with stream data');
-                    // Use Future.microtask to avoid setState during build
-                    Future.microtask(() {
-                      if (mounted) {
-                        setState(() {
-                          employees = List.from(currentEmployees);
-                          _updateWeekDatesFromRoster(currentEmployees);
-                        });
-                      }
-                    });
-                  } else {
-                    print('✅ No state update needed - using current local data');
-                  }
-                  
-                  return _useModernView 
-                    ? ModernRosterTable(
-                        employees: currentEmployees,
+                  if (isWeekSpecificRoster) {
+                    // For week-specific rosters, completely ignore stream updates after initial load
+                    // to maintain complete independence
+                    if (employees.isEmpty && currentEmployees.isNotEmpty) {
+                      print('🔄 Week-specific roster initial load - setting employees (one-time only)');
+                      Future.microtask(() {
+                        if (mounted) {
+                          setState(() {
+                            // Create deep copies to ensure complete independence
+                            employees = currentEmployees.map((emp) {
+                              final empJson = emp.toJson();
+                              return Employee.fromJson(empJson);
+                            }).toList();
+                            _updateWeekDatesFromRoster(employees);
+                          });
+                        }
+                      });
+                      
+                      // Return the table with deep-copied data for initial load
+                      return ModernRosterTable(
+                        employees: currentEmployees.map((emp) {
+                          final empJson = emp.toJson();
+                          return Employee.fromJson(empJson);
+                        }).toList(),
                         weekDates: weekDates,
                         onEdit: _openEditDialog,
                         onRosterChanged: (list) => _saveRoster(list),
-                      )
-                    : RosterTable(
-                        employees: currentEmployees,
-                        weekDates: weekDates,
-                        onEdit: _openEditDialog,
-                        onRosterChanged: (list) => _saveRoster(list),
-                        headerColor: headerColor,
-                        headerTextColor: headerTextColor,
-                        cellBorderColor: cellBorderColor,
-                        dayOffBgColor: dayOffBgColor,
-                        holidayBgColor: holidayBgColor,
+                        onCurrentWeekDataChanged: _onCurrentWeekDataChanged,
+                        rosterName: widget.rosterName,
                       );
+                    } else {
+                      // After initial load, always use local state and ignore stream updates
+                      print('📌 Week-specific roster: using local state (ignoring stream)');
+                      return ModernRosterTable(
+                        employees: employees,
+                        weekDates: weekDates,
+                        onEdit: _openEditDialog,
+                        onRosterChanged: (list) => _saveRoster(list),
+                        onCurrentWeekDataChanged: _onCurrentWeekDataChanged,
+                        rosterName: widget.rosterName,
+                      );
+                    }
+                  } else {
+                    // For regular rosters, use the full stream logic
+                    // CRITICAL: Only update state if this is initial load OR external change
+                    bool shouldUpdate = false;
+                    
+                    // Initial load case - employees list is empty
+                    if (employees.isEmpty && currentEmployees.isNotEmpty) {
+                      print('🔄 Initial load - setting employees');
+                      shouldUpdate = true;
+                    }
+                    // Length change from external source (not local addition)
+                    else if (employees.length != currentEmployees.length) {
+                      // Check if this is a new employee we just added locally
+                      bool isLocalAddition = employees.length == currentEmployees.length - 1;
+                      if (!isLocalAddition) {
+                        print('🔄 Employee count changed externally');
+                        shouldUpdate = true;
+                      } else {
+                        print('✅ Local addition detected - not overwriting');
+                      }
+                    }
+                    // Check for actual data changes (shifts, etc.)
+                    else if (employees.length == currentEmployees.length && employees.isNotEmpty) {
+                      for (int i = 0; i < employees.length; i++) {
+                        if (employees[i].name != currentEmployees[i].name || 
+                            employees[i].shifts.length != currentEmployees[i].shifts.length) {
+                          print('🔄 Employee data changed externally');
+                          shouldUpdate = true;
+                          break;
+                        }
+                      }
+                    }
+                    
+                    if (shouldUpdate) {
+                      print('🔄 Updating state with stream data');
+                      // Use Future.microtask to avoid setState during build
+                      Future.microtask(() {
+                        if (mounted) {
+                          setState(() {
+                            employees = List.from(currentEmployees);
+                            _updateWeekDatesFromRoster(currentEmployees);
+                          });
+                        }
+                      });
+                    } else {
+                      print('✅ No state update needed - using current local data');
+                    }
+                    
+                    return ModernRosterTable(
+                      employees: currentEmployees,
+                      weekDates: weekDates,
+                      onEdit: _openEditDialog,
+                      onRosterChanged: (list) => _saveRoster(list),
+                      onCurrentWeekDataChanged: _onCurrentWeekDataChanged,
+                      rosterName: widget.rosterName,
+                    );
+                  }
                 }
                 
                 print('🔍 StreamBuilder showing loading spinner...');

@@ -36,6 +36,14 @@ class PdfService {
     Map<String, DateTime> weekDates, {
     Map<String, int?>? style,
   }) async {
+    print('📄 Building Public PDF with ${employees.length} employees');
+    for (final emp in employees) {
+      print('  - ${emp.name}: ${emp.shifts.length} shifts');
+      for (final shift in emp.shifts.entries) {
+        print('    - ${shift.key}: ${shift.value.toJson()}');
+      }
+    }
+    
     final pdf = pw.Document();
     final dateFmt = DateFormat('EEE dd MMM yyyy');
 
@@ -126,6 +134,14 @@ class PdfService {
     Map<String, DateTime> weekDates, {
     Map<String, int?>? style,
   }) async {
+    print('📄 Building Private PDF with ${employees.length} employees');
+    for (final emp in employees) {
+      print('  - ${emp.name}: ${emp.shifts.length} shifts');
+      for (final shift in emp.shifts.entries) {
+        print('    - ${shift.key}: ${shift.value.toJson()}');
+      }
+    }
+    
     final pdf = pw.Document();
     final dateFmt = DateFormat('EEE dd MMM yyyy');
 
