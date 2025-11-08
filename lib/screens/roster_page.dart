@@ -1,4 +1,8 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:printing/printing.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import '../models/employee_model.dart';
 import '../services/pdf_service.dart';
 import '../widgets/add_shift_dialog.dart';
@@ -193,6 +197,169 @@ class _RosterPageState extends State<RosterPage> {
     await PdfService.sharePrivateRosterPdf(context, employeesToUse, weekDates, style: style);
   }
 
+  Future<void> _previewPublicPdf(List<Employee> fallbackEmployees) async {
+    // Use current week's data if available, otherwise fallback to state employees
+    final employeesToUse = currentWeekEmployees.isNotEmpty ? currentWeekEmployees : fallbackEmployees;
+
+    // Style info
+    final style = <String, int?>{
+      'headerColor': headerColor?.value,
+      'headerTextColor': headerTextColor?.value,
+      'cellBorderColor': cellBorderColor?.value,
+      'dayOffBgColor': dayOffBgColor?.value,
+      'holidayBgColor': holidayBgColor?.value,
+    };
+
+    print('📄 Previewing Public PDF with ${employeesToUse.length} employees');
+    
+    try {
+      final pdfBytes = await PdfService.buildPublicRosterPdf(
+        employeesToUse, 
+        weekDates, 
+        style: style,
+      );
+      
+      _showPdfPreviewDialog(pdfBytes, 'Staff Schedule Preview', false);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error generating preview: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _previewPrivatePdf(List<Employee> fallbackEmployees) async {
+    // Use current week's data if available, otherwise fallback to state employees
+    final employeesToUse = currentWeekEmployees.isNotEmpty ? currentWeekEmployees : fallbackEmployees;
+
+    // Style info
+    final style = <String, int?>{
+      'headerColor': headerColor?.value,
+      'headerTextColor': headerTextColor?.value,
+      'cellBorderColor': cellBorderColor?.value,
+      'dayOffBgColor': dayOffBgColor?.value,
+      'holidayBgColor': holidayBgColor?.value,
+    };
+
+    print('📄 Previewing Private PDF with ${employeesToUse.length} employees');
+    
+    try {
+      final pdfBytes = await PdfService.buildPrivateRosterPdf(
+        employeesToUse, 
+        weekDates, 
+        style: style,
+      );
+      
+      _showPdfPreviewDialog(pdfBytes, 'Management Report Preview', true);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error generating preview: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _showPdfPreviewDialog(Uint8List pdfBytes, String title, bool isPrivate) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.9,
+            height: MediaQuery.of(context).size.height * 0.8,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Icon(
+                      isPrivate ? Icons.admin_panel_settings : Icons.schedule,
+                      color: Colors.blue.shade600,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue.shade700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const Divider(),
+                const SizedBox(height: 16),
+                // PDF Preview
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: PdfPreview(
+                      build: (format) => pdfBytes,
+                      canChangePageFormat: false,
+                      canDebug: false,
+                      initialPageFormat: PdfPageFormat.a4,
+                      pdfFileName: "${title.replaceAll(' ', '_')}.pdf",
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Action buttons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                      label: const Text('Close'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey.shade600,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        Navigator.of(context).pop();
+                        // Download the PDF
+                        final employeeList = currentWeekEmployees.isNotEmpty 
+                            ? currentWeekEmployees 
+                            : <Employee>[];
+                        if (isPrivate) {
+                          _exportPrivatePdf(employeeList);
+                        } else {
+                          _exportPublicPdf(employeeList);
+                        }
+                      },
+                      icon: const Icon(Icons.download),
+                      label: const Text('Download PDF'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2196F3),
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<Shift?> _openEditDialog(BuildContext context, Shift? currentShift) async {
     return await showDialog<Shift>(
       context: context,
@@ -212,50 +379,198 @@ class _RosterPageState extends State<RosterPage> {
             icon: const Icon(Icons.palette_outlined),
             onPressed: _openCustomizeDialog,
           ),
-          // Staff Schedule PDF (Public)
-          IconButton(
+          
+          // Separator
+          const SizedBox(width: 8),
+          
+          // Staff Schedule Section
+          PopupMenuButton<String>(
             icon: const Icon(Icons.schedule),
-            tooltip: 'Export Staff Schedule',
-            onPressed: () => _exportPublicPdf(employees),
+            tooltip: 'Staff Schedule Options',
+            onSelected: (String value) {
+              if (value == 'preview_public') {
+                _previewPublicPdf(employees);
+              } else if (value == 'download_public') {
+                _exportPublicPdf(employees);
+              }
+            },
+            itemBuilder: (BuildContext context) => [
+              const PopupMenuItem<String>(
+                value: 'preview_public',
+                child: Row(
+                  children: [
+                    Icon(Icons.visibility, size: 20),
+                    SizedBox(width: 8),
+                    Text('Preview Schedule'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'download_public',
+                child: Row(
+                  children: [
+                    Icon(Icons.download, size: 20),
+                    SizedBox(width: 8),
+                    Text('Download Schedule'),
+                  ],
+                ),
+              ),
+            ],
           ),
-          // Management Report PDF (Private)
-          IconButton(
+          
+          // Management Report Section
+          PopupMenuButton<String>(
             icon: const Icon(Icons.analytics),
-            tooltip: 'Export Management Report',
-            onPressed: () => _exportPrivatePdf(employees),
+            tooltip: 'Management Report Options',
+            onSelected: (String value) {
+              if (value == 'preview_private') {
+                _previewPrivatePdf(employees);
+              } else if (value == 'download_private') {
+                _exportPrivatePdf(employees);
+              }
+            },
+            itemBuilder: (BuildContext context) => [
+              const PopupMenuItem<String>(
+                value: 'preview_private',
+                child: Row(
+                  children: [
+                    Icon(Icons.preview, size: 20),
+                    SizedBox(width: 8),
+                    Text('Preview Report'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'download_private',
+                child: Row(
+                  children: [
+                    Icon(Icons.file_download, size: 20),
+                    SizedBox(width: 8),
+                    Text('Download Report'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xFF2196F3), // Primary blue to match the app theme
+        backgroundColor: const Color(0xFF2196F3), // Primary blue theme
         foregroundColor: Colors.white,
+        tooltip: 'Add Staff Member',
         onPressed: () async {
-          print('🔍 Add employee button pressed');
-          final result = await _showAddEmployeeDialog(context);
-          final name = result?.$1 ?? '';
-          if (name.isNotEmpty) {
-            print('🔍 Adding employee: $name');
-            print('🔍 Current employee count: ${employees.length}');
-            
-            final newEmployee = Employee(
-              name: name,
-              rosterStartDate: weekDates['Mon'],
-              rosterEndDate: weekDates['Sun'],
+          print('🔍 Add staff button pressed');
+          
+          // Check if this is a week-specific roster
+          final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
+          
+          if (isWeekSpecificRoster) {
+            // For week-specific rosters, show a simple add dialog
+            final TextEditingController nameController = TextEditingController();
+
+            final result = await showDialog<bool>(
+              context: context,
+              builder: (BuildContext context) {
+                return AlertDialog(
+                  title: Text('Add Staff Member'),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        controller: nameController,
+                        decoration: InputDecoration(
+                          labelText: 'Staff Name',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'This staff member will be added to ${widget.rosterName} and all future weeks.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: Text('Cancel'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: Text('Add'),
+                    ),
+                  ],
+                );
+              },
             );
-            
-            setState(() {
-              employees.add(newEmployee);
-            });
-            
-            print('✅ Employee added to local list. New count: ${employees.length}');
-            print('🔍 Saving roster...');
-            await _saveRoster(employees); // persist after add
-            print('✅ Roster saved successfully');
+
+            if (result == true && nameController.text.trim().isNotEmpty) {
+              final name = nameController.text.trim();
+              
+              // Check if already exists
+              bool exists = employees.any((emp) => emp.name.toLowerCase() == name.toLowerCase());
+              
+              if (exists) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Staff member "$name" already exists'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+                return;
+              }
+
+              // Add to current employees list
+              final newEmployee = Employee(
+                name: name,
+                rosterStartDate: weekDates['Mon'],
+                rosterEndDate: weekDates['Sun'],
+              );
+
+              setState(() {
+                employees.add(newEmployee);
+              });
+
+              // Save current week
+              await _saveRoster(employees);
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Added staff member "$name"'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+
+              print('Staff Management: Added "$name" to ${widget.rosterName}');
+            }
           } else {
-            print('❌ No employee name provided');
+            // Use existing employee dialog for regular rosters
+            final result = await _showAddEmployeeDialog(context);
+            final name = result?.$1 ?? '';
+            if (name.isNotEmpty) {
+              print('🔍 Adding employee: $name');
+              print('🔍 Current employee count: ${employees.length}');
+              
+              final newEmployee = Employee(
+                name: name,
+                rosterStartDate: weekDates['Mon'],
+                rosterEndDate: weekDates['Sun'],
+              );
+              
+              setState(() {
+                employees.add(newEmployee);
+              });
+              
+              print('✅ Employee added to local list. New count: ${employees.length}');
+              print('🔍 Saving roster...');
+              await _saveRoster(employees); // persist after add
+              print('✅ Roster saved successfully');
+            } else {
+              print('❌ No employee name provided');
+            }
           }
         },
-        child: const Icon(Icons.add),
+        child: const Icon(Icons.add, size: 28),
       ),
       body: Column(
         mainAxisSize: MainAxisSize.min,

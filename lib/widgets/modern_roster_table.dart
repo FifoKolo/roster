@@ -13,6 +13,7 @@ class ModernRosterTable extends StatefulWidget {
   final Future<void> Function(List<Employee>) onRosterChanged;
   final void Function(List<Employee>, DateTime)? onCurrentWeekDataChanged;
   final String rosterName; // Add roster name for persistent weekly data
+  final VoidCallback? onAddStaff; // Callback for add staff functionality
 
   const ModernRosterTable({
     super.key,
@@ -22,6 +23,7 @@ class ModernRosterTable extends StatefulWidget {
     required this.onRosterChanged,
     required this.rosterName,
     this.onCurrentWeekDataChanged,
+    this.onAddStaff,
   });
 
   @override
@@ -71,6 +73,24 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   List<Employee> _getEmployeeList() {
     final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
     return isWeekSpecificRoster ? _independentEmployees : widget.employees;
+  }
+
+  @override
+  void didUpdateWidget(ModernRosterTable oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // Update independent employees when the widget updates
+    final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
+    if (isWeekSpecificRoster && widget.employees != oldWidget.employees) {
+      setState(() {
+        _independentEmployees = widget.employees.map((emp) {
+          final empJson = emp.toJson();
+          final newEmp = Employee.fromJson(empJson);
+          return newEmp;
+        }).toList();
+      });
+      print('🔄 Updated independent employees: ${_independentEmployees.length}');
+    }
   }
 
   @override
@@ -816,6 +836,22 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                 ],
               ),
             ),
+            // Delete button - compact size
+            SizedBox(
+              width: 28,
+              height: 28,
+              child: IconButton(
+                onPressed: () {
+                  print('🗑️ Delete button clicked for ${employee.name}');
+                  _showDeleteEmployeeDialog(employee.name);
+                },
+                icon: const Icon(Icons.delete_outline),
+                tooltip: 'Remove ${employee.name}',
+                iconSize: 16,
+                color: Colors.red,
+                padding: EdgeInsets.zero,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 4),
@@ -849,36 +885,36 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
             width: 120,
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: _getShiftCellColor(shift).withOpacity(0.9),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: _primaryBlue, width: 2),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.drag_handle, color: _primaryBlue, size: 16),
-                const SizedBox(height: 4),
-                _buildShiftContent(shift),
-              ],
-            ),
-          ),
-        ),
-        childWhenDragging: Container(
-          padding: const EdgeInsets.all(16),
-          margin: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade200,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: Colors.grey.shade400, style: BorderStyle.solid),
-          ),
-          child: Center(
-            child: Text(
-              'Moving...',
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
+                color: _getShiftCellColor(shift).withOpacity(0.9),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _primaryBlue, width: 2),
               ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.drag_handle, color: _primaryBlue, size: 16),
+                  const SizedBox(height: 4),
+                  _buildShiftContent(shift),
+                ],
+              ),
+            ),
+          ),
+          childWhenDragging: Container(
+            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade200,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.grey.shade400, style: BorderStyle.solid),
+            ),
+            child: Center(
+              child: Text(
+                'Moving...',
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
             ),
           ),
         ),
@@ -1849,6 +1885,10 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           borderRadius: BorderRadius.circular(16),
         ),
         child: Container(
+          constraints: BoxConstraints(
+            maxWidth: 500,
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
+          ),
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: _white,
@@ -1861,91 +1901,110 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
               ),
             ],
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Header with avatar
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: _primaryBlue,
-                    child: Text(
-                      employee.name.isNotEmpty ? employee.name[0].toUpperCase() : '?',
-                      style: const TextStyle(
-                        color: _white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header with avatar and delete button
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: _primaryBlue,
+                      child: Text(
+                        employee.name.isNotEmpty ? employee.name[0].toUpperCase() : '?',
+                        style: const TextStyle(
+                          color: _white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          employee.name,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: _darkGray,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            employee.name,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: _darkGray,
+                            ),
                           ),
-                        ),
-                        Text(
-                          'Employee Profile',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: _darkGray.withOpacity(0.7),
+                          Text(
+                            'Employee Profile',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: _darkGray.withOpacity(0.7),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 24),
-              
-              // Stats cards
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _lightGray,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    _buildStatRow('Total Hours', '${employee.totalWorkedHours.toStringAsFixed(1)} hrs', Icons.access_time),
-                    const SizedBox(height: 12),
-                    _buildStatRow('Paid Hours', '${employee.totalPaidHours.toStringAsFixed(1)} hrs', Icons.attach_money),
-                    const SizedBox(height: 12),
-                    _buildStatRow('Holiday Hours', '${employee.holidayHoursEarnedThisWeek.toStringAsFixed(1)} hrs', Icons.beach_access),
-                    const SizedBox(height: 12),
-                    _buildStatRow('Break Time', '${employee.breakHours.toStringAsFixed(1)} hrs', Icons.coffee),
+                    // Delete button - more prominent
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: IconButton(
+                        onPressed: () {
+                          print('🗑️ Delete button pressed for ${employee.name}');
+                          _showDeleteEmployeeDialog(employee.name);
+                        },
+                        icon: const Icon(Icons.delete_outline),
+                        tooltip: 'Remove Staff Member',
+                        iconSize: 24,
+                        color: Colors.red,
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              
-              const SizedBox(height: 24),
-              
-              // Close button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _primaryBlue,
-                    foregroundColor: _white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+                
+                const SizedBox(height: 24),
+                
+                // Stats cards
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _lightGray,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Text('Close', style: TextStyle(fontSize: 16)),
+                  child: Column(
+                    children: [
+                      _buildStatRow('Total Hours', '${employee.totalWorkedHours.toStringAsFixed(1)} hrs', Icons.access_time),
+                      const SizedBox(height: 12),
+                      _buildStatRow('Paid Hours', '${employee.totalPaidHours.toStringAsFixed(1)} hrs', Icons.attach_money),
+                      const SizedBox(height: 12),
+                      _buildStatRow('Holiday Hours', '${employee.holidayHoursEarnedThisWeek.toStringAsFixed(1)} hrs', Icons.beach_access),
+                      const SizedBox(height: 12),
+                      _buildStatRow('Break Time', '${employee.breakHours.toStringAsFixed(1)} hrs', Icons.coffee),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                
+                const SizedBox(height: 24),
+                
+                // Close button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primaryBlue,
+                      foregroundColor: _white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text('Close', style: TextStyle(fontSize: 16)),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -2084,6 +2143,259 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           ),
         );
       }
+    }
+  }
+
+  void _showDeleteEmployeeDialog(String employeeName) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Remove Staff Member'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Are you sure you want to remove "$employeeName"?'),
+              SizedBox(height: 16),
+              Text(
+                'Choose removal scope:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close delete dialog
+                Navigator.of(context).pop(); // Close employee profile dialog
+                _removeStaffMember(employeeName, false);
+              },
+              child: Text('Current Week Only'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close delete dialog
+                Navigator.of(context).pop(); // Close employee profile dialog
+                _removeStaffMember(employeeName, true);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: Text('All Future Weeks'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Staff Management Methods
+  // Public method for adding staff - can be called from parent widget
+  void showAddStaffDialog() {
+    _showAddStaffDialog();
+  }
+
+  void _showAddStaffDialog() {
+    final TextEditingController nameController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Add Staff Member'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(
+                  labelText: 'Staff Name',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              SizedBox(height: 16),
+              Text(
+                'This staff member will be added to ${widget.rosterName} and all future weeks.',
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => _addStaffMember(nameController.text.trim()),
+              child: Text('Add'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _addStaffMember(String name) {
+    if (name.isEmpty) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    // Check if employee already exists
+    bool exists = _independentEmployees.any((emp) => emp.name.toLowerCase() == name.toLowerCase());
+
+    setState(() {
+      if (!exists) {
+        _independentEmployees.add(Employee(name: name));
+        print('Staff Management: Added "$name" to ${widget.rosterName}');
+        print('Staff Management: Current staff count: ${_independentEmployees.length}');
+        
+        // Save to current week
+        _saveCurrentWeekData();
+        
+        // Add to all future weeks as well
+        _addStaffToFutureWeeks(name);
+      }
+    });
+
+    Navigator.of(context).pop();
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(exists ? 'Staff member "$name" already exists' : 'Added staff member "$name"'),
+        backgroundColor: exists ? Colors.orange : Colors.green,
+      ),
+    );
+  }
+
+  void _addStaffToFutureWeeks(String name) async {
+    try {
+      // Get all week rosters from storage
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys().where((key) => key.startsWith('roster_Week')).toList();
+      
+      // Extract week numbers
+      List<int> weekNumbers = [];
+      for (String key in keys) {
+        final weekStr = key.replaceFirst('roster_Week', '');
+        final weekNum = int.tryParse(weekStr);
+        if (weekNum != null) {
+          weekNumbers.add(weekNum);
+        }
+      }
+      
+      // Get current week number
+      final currentWeekStr = widget.rosterName.replaceFirst('Week', '');
+      final currentWeekNum = int.tryParse(currentWeekStr);
+      
+      if (currentWeekNum != null) {
+        // Add to all future weeks
+        for (int weekNum in weekNumbers) {
+          if (weekNum > currentWeekNum) {
+            final weekKey = 'roster_Week$weekNum';
+            final weekData = prefs.getString(weekKey);
+            
+            if (weekData != null) {
+              try {
+                final Map<String, dynamic> data = json.decode(weekData);
+                List<dynamic> employeesJson = data['employees'] ?? [];
+                List<Employee> employees = employeesJson.map((e) => Employee.fromJson(e)).toList();
+                
+                // Check if employee already exists in this week
+                bool exists = employees.any((emp) => emp.name.toLowerCase() == name.toLowerCase());
+                
+                if (!exists) {
+                  employees.add(Employee(name: name));
+                  data['employees'] = employees.map((e) => e.toJson()).toList();
+                  await prefs.setString(weekKey, json.encode(data));
+                  print('Staff Management: Added "$name" to Week$weekNum');
+                }
+              } catch (e) {
+                print('Staff Management: Error adding to Week$weekNum: $e');
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('Staff Management: Error adding to future weeks: $e');
+    }
+  }
+
+  void _removeStaffMember(String name, bool removeFromFuture) async {
+    setState(() {
+      _independentEmployees.removeWhere((emp) => emp.name == name);
+      print('Staff Management: Removed "$name" from ${widget.rosterName}');
+      print('Staff Management: Current staff count: ${_independentEmployees.length}');
+    });
+
+    // Save current week
+    _saveCurrentWeekData();
+
+    if (removeFromFuture) {
+      await _removeStaffFromFutureWeeks(name);
+    }
+
+    Navigator.of(context).pop();
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(removeFromFuture 
+          ? 'Removed "$name" from current and all future weeks' 
+          : 'Removed "$name" from ${widget.rosterName} only'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  Future<void> _removeStaffFromFutureWeeks(String name) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys().where((key) => key.startsWith('roster_Week')).toList();
+      
+      // Extract week numbers
+      List<int> weekNumbers = [];
+      for (String key in keys) {
+        final weekStr = key.replaceFirst('roster_Week', '');
+        final weekNum = int.tryParse(weekStr);
+        if (weekNum != null) {
+          weekNumbers.add(weekNum);
+        }
+      }
+      
+      // Get current week number
+      final currentWeekStr = widget.rosterName.replaceFirst('Week', '');
+      final currentWeekNum = int.tryParse(currentWeekStr);
+      
+      if (currentWeekNum != null) {
+        // Remove from all future weeks
+        for (int weekNum in weekNumbers) {
+          if (weekNum > currentWeekNum) {
+            final weekKey = 'roster_Week$weekNum';
+            final weekData = prefs.getString(weekKey);
+            
+            if (weekData != null) {
+              try {
+                final Map<String, dynamic> data = json.decode(weekData);
+                List<dynamic> employeesJson = data['employees'] ?? [];
+                List<Employee> employees = employeesJson.map((e) => Employee.fromJson(e)).toList();
+                
+                // Remove the employee
+                employees.removeWhere((emp) => emp.name == name);
+                data['employees'] = employees.map((e) => e.toJson()).toList();
+                await prefs.setString(weekKey, json.encode(data));
+                print('Staff Management: Removed "$name" from Week$weekNum');
+              } catch (e) {
+                print('Staff Management: Error removing from Week$weekNum: $e');
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('Staff Management: Error removing from future weeks: $e');
     }
   }
 }
