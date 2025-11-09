@@ -125,7 +125,7 @@ class PdfService {
     return pdf.save();
   }
 
-  /// Build a PRIVATE roster PDF for management (includes all hours and accumulated data)
+  /// private roster
   static Future<Uint8List> buildPrivateRosterPdf(
     List<Employee> employees,
     Map<String, DateTime> weekDates, {

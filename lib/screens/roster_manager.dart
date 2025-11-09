@@ -53,61 +53,23 @@ class _RosterManagerState extends State<RosterManager> {
       }
       print('✅ Got roster name: $customName');
 
-      print('🔍 Showing choice dialog...');
-      // Ask how to initialize staff for this new roster
-      final choice = await _askRosterInitChoice(hasPrevious: rosterNames.isNotEmpty);
-      if (choice == null) {
-        print('❌ User cancelled choice dialog');
-        return;
-      }
-      print('✅ User chose: $choice');
-
+      // Skip the choice dialog and go directly to staff names
+      print('🔍 Getting initial staff names...');
+      final names = await _askInitialStaffNames();
       List<Employee> newEmployees = [];
-
-      if (choice == 'load_previous' && rosterNames.isNotEmpty) {
-        print('🔍 Loading previous roster data...');
-        
-        // Find the most recent roster by name (simple approach)
-        final lastRosterName = rosterNames.last;
-        print('🔍 Loading from roster: $lastRosterName');
-        
-        final prev = await RosterStorage.loadRoster(lastRosterName);
-        print('✅ Loaded ${prev.length} employees from previous roster');
-        
-        newEmployees = prev
-            .map((e) => Employee(
-                  name: e.name,
-                  shifts: {}, // start with empty shifts for the new week
-                  employeeColor: e.employeeColor,
-                  // CRITICAL: Carry forward accumulated totals + this week's work
-                  accumulatedWorkedHours: e.accumulatedWorkedHours + e.totalWorkedHours,
-                  accumulatedTotalHours: e.accumulatedTotalHours + e.totalHours,
-                  // CRITICAL: Carry forward REMAINING holiday hours (after usage)
-                  accumulatedHolidayHours: e.remainingAccumulatedHolidayHours,
-                  // NEW: Set the selected week dates
-                  rosterStartDate: monday,
-                  rosterEndDate: sunday,
-                ))
+      
+      if (names != null && names.trim().isNotEmpty) {
+        newEmployees = names
+            .split(',')
+            .map((s) => s.trim())
+            .where((s) => s.isNotEmpty)
+            .map((n) => Employee(
+              name: n,
+              rosterStartDate: monday,
+              rosterEndDate: sunday,
+            ))
             .toList();
-        
-        print('✅ Processed ${newEmployees.length} employees for new week');
-        } else if (choice == 'start_fresh') {
-        print('🔍 Getting initial staff names...');
-        // Optionally prefill names
-        final names = await _askInitialStaffNames();
-        if (names != null && names.trim().isNotEmpty) {
-          newEmployees = names
-              .split(',')
-              .map((s) => s.trim())
-              .where((s) => s.isNotEmpty)
-              .map((n) => Employee(
-                name: n,
-                rosterStartDate: monday,
-                rosterEndDate: sunday,
-              ))
-              .toList();
-          print('✅ Created ${newEmployees.length} employees from names');
-        }
+        print('✅ Created ${newEmployees.length} employees from names');
       }
 
       print('🔍 Creating roster with ${newEmployees.length} employees...');
@@ -434,164 +396,7 @@ class _RosterManagerState extends State<RosterManager> {
     );
   }
 
-  Future<String?> _askRosterInitChoice({required bool hasPrevious}) async {
-    return showDialog<String>(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.green.shade100,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(Icons.group_add, color: Colors.green.shade700),
-            ),
-            const SizedBox(width: 12),
-            const Text(
-              'Setup Staff',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        content: SizedBox(
-          width: 400,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'How would you like to initialize the staff for this new roster?',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey.shade700,
-                ),
-              ),
-              const SizedBox(height: 20),
-              
-              if (hasPrevious) ...[
-                // Load Previous Option
-                Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.blue.shade300),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: InkWell(
-                    onTap: () => Navigator.pop(context, 'load_previous'),
-                    borderRadius: BorderRadius.circular(12),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.shade100,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Icon(Icons.history, color: Colors.blue.shade700),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Load Previous Staff',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 16,
-                                    color: Colors.blue.shade700,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Copy staff from your last roster (blank shifts)',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey.shade600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Icon(Icons.arrow_forward_ios, color: Colors.blue.shade400, size: 16),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-              
-              // Start Fresh Option
-              Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.green.shade300),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: InkWell(
-                  onTap: () => Navigator.pop(context, 'start_fresh'),
-                  borderRadius: BorderRadius.circular(12),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.green.shade100,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(Icons.add_circle, color: Colors.green.shade700),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Start Fresh',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 16,
-                                  color: Colors.green.shade700,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Create a completely new roster from scratch',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey.shade600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(Icons.arrow_forward_ios, color: Colors.green.shade400, size: 16),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, null),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   Future<String?> _askInitialStaffNames() async {
     final ctl = TextEditingController();

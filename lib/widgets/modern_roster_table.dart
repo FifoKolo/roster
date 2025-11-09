@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/employee_model.dart';
@@ -31,18 +31,26 @@ class ModernRosterTable extends StatefulWidget {
 }
 
 class _ModernRosterTableState extends State<ModernRosterTable> {
-  static const List<String> _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  static const List<String> _days = [
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat',
+    'Sun'
+  ];
   DateTime _currentWeek = DateTime.now();
-  
+
   // Week-specific data storage to maintain separate schedules for each week
   final Map<String, Map<String, Map<String, Shift>>> _weeklyData = {};
-  
+
   // Independent employee data for week-specific rosters
   List<Employee> _independentEmployees = [];
-  
+
   // Clipboard state for copy/paste functionality
   Shift? _clipboardShift;
-  
+
   // Color scheme matching original app (white and blue theme)
   static const Color _primaryBlue = Color(0xFF2196F3);
   static const Color _lightGray = Color(0xFFF5F5F5);
@@ -55,9 +63,10 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     super.initState();
     _initCurrentWeek();
     _initWeeklyData();
-    
+
     // For week-specific rosters, create independent copies of employee data
-    final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
+    final isWeekSpecificRoster =
+        RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
     if (isWeekSpecificRoster) {
       // Removed emoji print statement
       _independentEmployees = widget.employees.map((emp) {
@@ -71,16 +80,18 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
 
   // Get the appropriate employee list based on roster type
   List<Employee> _getEmployeeList() {
-    final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
+    final isWeekSpecificRoster =
+        RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
     return isWeekSpecificRoster ? _independentEmployees : widget.employees;
   }
 
   @override
   void didUpdateWidget(ModernRosterTable oldWidget) {
     super.didUpdateWidget(oldWidget);
-    
+
     // Update independent employees when the widget updates
-    final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
+    final isWeekSpecificRoster =
+        RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
     if (isWeekSpecificRoster && widget.employees != oldWidget.employees) {
       setState(() {
         _independentEmployees = widget.employees.map((emp) {
@@ -89,7 +100,8 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           return newEmp;
         }).toList();
       });
-      print('🔄 Updated independent employees: ${_independentEmployees.length}');
+      print(
+          '🔄 Updated independent employees: ${_independentEmployees.length}');
     }
   }
 
@@ -98,8 +110,9 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     // IMPORTANT: Do NOT auto-save on dispose for week-specific rosters
     // This causes race conditions when navigating between weeks
     // Removed emoji print statement
-    
-    final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
+
+    final isWeekSpecificRoster =
+        RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
     if (isWeekSpecificRoster) {
       // For week-specific rosters, do NOT auto-save on dispose
       // This prevents race conditions during navigation
@@ -128,26 +141,27 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     await _loadWeeklyDataFromStorage(widget.rosterName);
     _loadCurrentWeekData();
   }
-  
+
   // Generate a unique key for each week
   String _getWeekKey(DateTime week) {
     return '${week.year}-${week.month.toString().padLeft(2, '0')}-${week.day.toString().padLeft(2, '0')}';
   }
-  
+
   // Load current week's data from storage or widget.employees
   void _loadCurrentWeekData() {
     final weekKey = _getWeekKey(_currentWeek);
     // Removed emoji print statement
-    
+
     // Check if this is a week-specific roster (like "Week 45", "Week 46", etc.)
-    final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
-    
+    final isWeekSpecificRoster =
+        RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
+
     if (isWeekSpecificRoster) {
       // For week-specific rosters, don't use weekly data system - just use the roster's data directly
       // Removed emoji print statement
       return; // Keep the original employee data as-is
     }
-    
+
     if (_weeklyData.containsKey(weekKey)) {
       // Load from cached weekly data
       // Removed emoji print statement
@@ -165,15 +179,16 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       _saveCurrentWeekData();
     }
   }
-  
+
   // Save current week's data to our weekly storage
   void _saveCurrentWeekData() {
     final weekKey = _getWeekKey(_currentWeek);
     // Removed emoji print statement
-    
+
     // Check if this is a week-specific roster (like "Week 45", "Week 46", etc.)
-    final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
-    
+    final isWeekSpecificRoster =
+        RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
+
     if (isWeekSpecificRoster) {
       // For week-specific rosters, save directly to roster storage instead of weekly data
       // Removed emoji print statement
@@ -181,10 +196,10 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       _notifyCurrentWeekDataChanged();
       return;
     }
-    
+
     final employeeList = _getEmployeeList();
     _weeklyData[weekKey] = {};
-    
+
     for (final employee in employeeList) {
       final shiftsCopy = <String, Shift>{};
       // Create deep copies of shifts to ensure independence
@@ -196,10 +211,10 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       // Removed emoji print statement
     }
     // Removed emoji print statement
-    
+
     // Persist weekly data to storage
     _saveWeeklyDataToStorage(widget.rosterName);
-    
+
     // Notify parent of current week data changes for PDF generation
     _notifyCurrentWeekDataChanged();
   }
@@ -234,18 +249,18 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final weeklyDataJson = <String, Map<String, Map<String, dynamic>>>{};
-      
+
       // Convert weekly data to JSON format
       for (final weekEntry in _weeklyData.entries) {
         final weekKey = weekEntry.key;
         final weekData = weekEntry.value;
         weeklyDataJson[weekKey] = {};
-        
+
         for (final employeeEntry in weekData.entries) {
           final employeeName = employeeEntry.key;
           final shifts = employeeEntry.value;
           weeklyDataJson[weekKey]![employeeName] = {};
-          
+
           for (final shiftEntry in shifts.entries) {
             final day = shiftEntry.key;
             final shift = shiftEntry.value;
@@ -253,7 +268,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           }
         }
       }
-      
+
       final jsonString = jsonEncode(weeklyDataJson);
       await prefs.setString('weekly_data_$rosterName', jsonString);
       // Removed emoji print statement
@@ -267,30 +282,31 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final jsonString = prefs.getString('weekly_data_$rosterName');
-      
+
       if (jsonString != null) {
         final weeklyDataJson = jsonDecode(jsonString) as Map<String, dynamic>;
         _weeklyData.clear();
-        
+
         // Convert JSON back to weekly data format
         for (final weekEntry in weeklyDataJson.entries) {
           final weekKey = weekEntry.key;
           final weekData = weekEntry.value as Map<String, dynamic>;
           _weeklyData[weekKey] = {};
-          
+
           for (final employeeEntry in weekData.entries) {
             final employeeName = employeeEntry.key;
             final shiftsData = employeeEntry.value as Map<String, dynamic>;
             _weeklyData[weekKey]![employeeName] = {};
-            
+
             for (final shiftEntry in shiftsData.entries) {
               final day = shiftEntry.key;
               final shiftJson = shiftEntry.value as Map<String, dynamic>;
-              _weeklyData[weekKey]![employeeName]![day] = Shift.fromJson(shiftJson);
+              _weeklyData[weekKey]![employeeName]![day] =
+                  Shift.fromJson(shiftJson);
             }
           }
         }
-        
+
         // Removed emoji print statement
       } else {
         // Removed emoji print statement
@@ -368,8 +384,9 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
 
   Widget _buildWeekNavigation() {
     // Check if this is a week-specific roster (like "Week 45", "Week 46", etc.)
-    final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
-    
+    final isWeekSpecificRoster =
+        RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       color: _white,
@@ -394,9 +411,9 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
               ],
             ),
           ),
-          
+
           const SizedBox(width: 16),
-          
+
           // Show different navigation based on roster type - wrap in Expanded to prevent overflow
           Expanded(
             child: Row(
@@ -441,8 +458,9 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   Widget _buildWeekSpecificNavigation() {
     // Extract current week number from roster name
     final weekMatch = RegExp(r'Week (\d+)').firstMatch(widget.rosterName);
-    final currentWeekNumber = weekMatch != null ? int.parse(weekMatch.group(1)!) : null;
-    
+    final currentWeekNumber =
+        weekMatch != null ? int.parse(weekMatch.group(1)!) : null;
+
     if (currentWeekNumber == null) {
       // Fallback for week-specific rosters without number
       return Container(
@@ -495,28 +513,32 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
             ],
           ),
         ),
-        
+
         const SizedBox(width: 12),
-        
+
         // Previous week button
         ElevatedButton(
           onPressed: () async {
             print('Previous week button clicked for $prevWeekName');
-            print('About to get roster names directly from SharedPreferences...');
+            print(
+                'About to get roster names directly from SharedPreferences...');
             try {
               // Get roster names directly from SharedPreferences instead of stream
               final prefs = await SharedPreferences.getInstance();
-              final rosterNames = prefs.getStringList('roster_names') ?? <String>[];
+              final rosterNames =
+                  prefs.getStringList('roster_names') ?? <String>[];
               print('Got roster names directly: ${rosterNames.join(", ")}');
               final exists = rosterNames.contains(prevWeekName);
               print('Does $prevWeekName exist? $exists');
-              
+
               if (exists) {
                 print('Navigating to existing $prevWeekName');
                 _navigateToWeekRoster(prevWeekName);
               } else {
-                print('Creating new $prevWeekName');
-                _createAndNavigateToWeekRoster(prevWeekName, -1);
+                print('Showing dialog to create new $prevWeekName');
+                // Get current week shifts for copying option
+                final currentWeekShifts = _getCurrentWeekShifts();
+                _showCreateNewWeekDialog(prevWeekName, currentWeekShifts);
               }
             } catch (e) {
               print('Error in navigation logic: $e');
@@ -542,28 +564,32 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
             ],
           ),
         ),
-        
+
         const SizedBox(width: 8),
-        
-        // Next week button  
+
+        // Next week button
         ElevatedButton(
           onPressed: () async {
             print('Next week button clicked for $nextWeekName');
-            print('About to get roster names directly from SharedPreferences...');
+            print(
+                'About to get roster names directly from SharedPreferences...');
             try {
               // Get roster names directly from SharedPreferences instead of stream
               final prefs = await SharedPreferences.getInstance();
-              final rosterNames = prefs.getStringList('roster_names') ?? <String>[];
+              final rosterNames =
+                  prefs.getStringList('roster_names') ?? <String>[];
               print('Got roster names directly: ${rosterNames.join(", ")}');
               final exists = rosterNames.contains(nextWeekName);
               print('Does $nextWeekName exist? $exists');
-              
+
               if (exists) {
                 print('Navigating to existing $nextWeekName');
                 _navigateToWeekRoster(nextWeekName);
               } else {
-                print('Creating new $nextWeekName');
-                _createAndNavigateToWeekRoster(nextWeekName, 1);
+                print('Showing dialog to create new $nextWeekName');
+                // Get current week shifts for copying option
+                final currentWeekShifts = _getCurrentWeekShifts();
+                _showCreateNewWeekDialog(nextWeekName, currentWeekShifts);
               }
             } catch (e) {
               print('Error in navigation logic: $e');
@@ -599,7 +625,10 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [_primaryBlue.withOpacity(0.05), Colors.indigo.withOpacity(0.05)],
+          colors: [
+            _primaryBlue.withOpacity(0.05),
+            Colors.indigo.withOpacity(0.05)
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -665,7 +694,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
               ),
             ),
           ),
-          
+
           // Day headers
           Expanded(
             child: Row(
@@ -673,7 +702,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                 final index = entry.key;
                 final day = entry.value;
                 final date = widget.weekDates[day];
-                
+
                 return Expanded(
                   child: _buildDayHeader(day, date, index),
                 );
@@ -686,9 +715,10 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   }
 
   Widget _buildDayHeader(String day, DateTime? date, int dayIndex) {
-    final bankHoliday = date != null ? IrishBankHolidays.getBankHoliday(date) : null;
+    final bankHoliday =
+        date != null ? IrishBankHolidays.getBankHoliday(date) : null;
     final isBankHoliday = bankHoliday != null;
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(
@@ -738,7 +768,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
 
   Widget _buildRosterContent() {
     final employeeList = _getEmployeeList();
-    
+
     return Container(
       color: _white,
       child: Column(
@@ -760,7 +790,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
 
   Widget _buildEmployeeRow(Employee employee, int index) {
     final isEvenRow = index % 2 == 0;
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       decoration: BoxDecoration(
@@ -777,7 +807,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: _buildEmployeeInfo(employee),
           ),
-          
+
           // Shift cells
           Expanded(
             child: Row(
@@ -885,36 +915,37 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
             width: 120,
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-                color: _getShiftCellColor(shift).withOpacity(0.9),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _primaryBlue, width: 2),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.drag_handle, color: _primaryBlue, size: 16),
-                  const SizedBox(height: 4),
-                  _buildShiftContent(shift),
-                ],
-              ),
+              color: _getShiftCellColor(shift).withOpacity(0.9),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: _primaryBlue, width: 2),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.drag_handle, color: _primaryBlue, size: 16),
+                const SizedBox(height: 4),
+                _buildShiftContent(shift),
+              ],
             ),
           ),
-          childWhenDragging: Container(
-            padding: const EdgeInsets.all(16),
-            margin: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade200,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: Colors.grey.shade400, style: BorderStyle.solid),
-            ),
-            child: Center(
-              child: Text(
-                'Moving...',
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic,
-                ),
+        ),
+        childWhenDragging: Container(
+          padding: const EdgeInsets.all(16),
+          margin: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade200,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+                color: Colors.grey.shade400, style: BorderStyle.solid),
+          ),
+          child: Center(
+            child: Text(
+              'Moving...',
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+              ),
             ),
           ),
         ),
@@ -929,28 +960,29 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           final draggedShift = data['shift'] as Shift;
           final sourceEmployee = data['sourceEmployee'] as String;
           final sourceDay = data['sourceDay'] as String;
-          
-          _moveShift(sourceEmployee, sourceDay, employee.name, day, draggedShift);
+
+          _moveShift(
+              sourceEmployee, sourceDay, employee.name, day, draggedShift);
         },
         builder: (context, candidateData, rejectedData) {
           final isHovering = candidateData.isNotEmpty;
-          
+
           return GestureDetector(
             onTap: () => _addShiftToCell(employee, day),
             child: Container(
               padding: const EdgeInsets.all(16),
               margin: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: isHovering 
-                  ? _primaryBlue.withOpacity(0.1)
-                  : Colors.transparent,
+                color: isHovering
+                    ? _primaryBlue.withOpacity(0.1)
+                    : Colors.transparent,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: isHovering
-                    ? _primaryBlue
-                    : _hasClipboard() 
-                      ? _primaryBlue.withOpacity(0.5)
-                      : _darkGray.withOpacity(0.2),
+                      ? _primaryBlue
+                      : _hasClipboard()
+                          ? _primaryBlue.withOpacity(0.5)
+                          : _darkGray.withOpacity(0.2),
                   width: isHovering ? 2 : (_hasClipboard() ? 2 : 0.5),
                 ),
               ),
@@ -1009,11 +1041,11 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
 
   Color _getShiftCellColor(Shift? shift) {
     if (shift == null) return Colors.transparent;
-    
+
     if (shift.isHoliday) return Colors.green[100]!;
-    
+
     // For work shifts, use role-based colors
-    return shift.role?.toLowerCase().contains('manager') == true 
+    return shift.role?.toLowerCase().contains('manager') == true
         ? Colors.orange[100]! // Manager shifts in light orange
         : _lightBlue;
   }
@@ -1107,7 +1139,8 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   }
 
   // Interactive shift cell with hover effects and quick actions
-  Widget _buildInteractiveShiftCell(Employee employee, String day, Shift shift) {
+  Widget _buildInteractiveShiftCell(
+      Employee employee, String day, Shift shift) {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: Builder(
@@ -1140,13 +1173,15 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                         children: [
                           _buildQuickActionButton(
                             icon: Icons.copy,
-                            onTap: () => _copyShiftToClipboard(employee, day, shift),
+                            onTap: () =>
+                                _copyShiftToClipboard(employee, day, shift),
                             tooltip: 'Copy',
                           ),
                           const SizedBox(width: 2),
                           _buildQuickActionButton(
                             icon: Icons.delete_outline,
-                            onTap: () => _confirmDeleteShift(employee, day, shift),
+                            onTap: () =>
+                                _confirmDeleteShift(employee, day, shift),
                             tooltip: 'Delete',
                             isDestructive: true,
                           ),
@@ -1176,9 +1211,9 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         child: Container(
           padding: const EdgeInsets.all(2),
           decoration: BoxDecoration(
-            color: isDestructive 
-              ? Colors.red.withOpacity(0.1)
-              : _primaryBlue.withOpacity(0.1),
+            color: isDestructive
+                ? Colors.red.withOpacity(0.1)
+                : _primaryBlue.withOpacity(0.1),
             borderRadius: BorderRadius.circular(4),
           ),
           child: Icon(
@@ -1191,10 +1226,11 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     );
   }
 
-  void _showQuickActions(BuildContext context, Employee employee, String day, Shift shift) {
+  void _showQuickActions(
+      BuildContext context, Employee employee, String day, Shift shift) {
     final RenderBox renderBox = context.findRenderObject() as RenderBox;
     final position = renderBox.localToGlobal(Offset.zero);
-    
+
     showMenu(
       context: context,
       position: RelativeRect.fromLTRB(
@@ -1249,33 +1285,36 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     return _clipboardShift != null;
   }
 
-  void _moveShift(String sourceEmployeeName, String sourceDay, String targetEmployeeName, String targetDay, Shift shift) {
+  void _moveShift(String sourceEmployeeName, String sourceDay,
+      String targetEmployeeName, String targetDay, Shift shift) {
     // Removed emoji print statement
     // Removed emoji print statement
-    
+
     final employeeList = _getEmployeeList();
-    
+
     // Find source and target employees
-    final sourceEmployee = employeeList.firstWhere((e) => e.name == sourceEmployeeName);
-    final targetEmployee = employeeList.firstWhere((e) => e.name == targetEmployeeName);
-    
+    final sourceEmployee =
+        employeeList.firstWhere((e) => e.name == sourceEmployeeName);
+    final targetEmployee =
+        employeeList.firstWhere((e) => e.name == targetEmployeeName);
+
     setState(() {
       // Remove shift from source
       sourceEmployee.shifts.remove(sourceDay);
       // Removed emoji print statement
-      
+
       // Add shift to target (create deep copy to avoid reference issues)
       final shiftJson = shift.toJson();
       final newShift = Shift.fromJson(shiftJson);
       targetEmployee.shifts[targetDay] = newShift;
       // Removed emoji print statement
     });
-    
+
     // Save current week data after modification
     _saveCurrentWeekData();
     widget.onRosterChanged(employeeList);
     _notifyCurrentWeekDataChanged();
-    
+
     // Show success message
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1287,7 +1326,8 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                 color: Colors.green.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: const Icon(Icons.swap_horiz, color: Colors.green, size: 16),
+              child:
+                  const Icon(Icons.swap_horiz, color: Colors.green, size: 16),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1358,11 +1398,11 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    shift.isHoliday 
-                      ? 'Holiday' 
-                      : shift.startTime != null && shift.endTime != null
-                        ? '${_formatTime(shift.startTime!)} - ${_formatTime(shift.endTime!)}'
-                        : 'Shift',
+                    shift.isHoliday
+                        ? 'Holiday'
+                        : shift.startTime != null && shift.endTime != null
+                            ? '${_formatTime(shift.startTime!)} - ${_formatTime(shift.endTime!)}'
+                            : 'Shift',
                     style: TextStyle(color: _darkGray),
                   ),
                 ],
@@ -1404,14 +1444,14 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     setState(() {
       employee.shifts.remove(day);
     });
-    
+
     final employeeList = _getEmployeeList();
-    
+
     // Save current week data after modification
     _saveCurrentWeekData();
     widget.onRosterChanged(employeeList);
     _notifyCurrentWeekDataChanged();
-    
+
     // Show success message
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1462,9 +1502,9 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         setState(() {
           employee.shifts[day] = newShift;
         });
-        
+
         final employeeList = _getEmployeeList();
-        
+
         // Save current week data after modification
         _saveCurrentWeekData();
         widget.onRosterChanged(employeeList);
@@ -1485,9 +1525,9 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         // Clear clipboard after paste
         _clipboardShift = null;
       });
-      
+
       final employeeList = _getEmployeeList();
-      
+
       // Save current week data after modification
       _saveCurrentWeekData();
       widget.onRosterChanged(employeeList);
@@ -1499,16 +1539,33 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   String _getOrdinalSuffix(int day) {
     if (day >= 11 && day <= 13) return 'th';
     switch (day % 10) {
-      case 1: return 'st';
-      case 2: return 'nd';
-      case 3: return 'rd';
-      default: return 'th';
+      case 1:
+        return 'st';
+      case 2:
+        return 'nd';
+      case 3:
+        return 'rd';
+      default:
+        return 'th';
     }
   }
 
   String _getMonthAbbr(int month) {
-    const months = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = [
+      '',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
     return months[month];
   }
 
@@ -1519,15 +1576,16 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   // Action methods
   void _navigateWeek(int direction) {
     // Safety check: Week-specific rosters should never use this method
-    final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
+    final isWeekSpecificRoster =
+        RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
     if (isWeekSpecificRoster) {
       // Removed emoji print statement
       return;
     }
-    
+
     // Save current week's data before navigation
     _saveCurrentWeekData();
-    
+
     // Store current week's shifts for copying to next week (if going forward)
     Map<String, Map<String, Shift>> currentWeekShifts = {};
     if (direction == 1) {
@@ -1543,7 +1601,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       }
       // Removed emoji print statement
     }
-    
+
     setState(() {
       _currentWeek = _currentWeek.add(Duration(days: 7 * direction));
       // Update week dates
@@ -1551,12 +1609,12 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         widget.weekDates[_days[i]] = _currentWeek.add(Duration(days: i));
       }
     });
-    
+
     // Load data for the new week
     final newWeekKey = _getWeekKey(_currentWeek);
     bool isNewWeek = !_weeklyData.containsKey(newWeekKey);
     // Removed emoji print statement
-    
+
     if (isNewWeek && direction == 1 && currentWeekShifts.isNotEmpty) {
       // New week going forward - offer to create a new roster or just copy data
       _showCreateNewWeekDialog(newWeekKey, currentWeekShifts);
@@ -1565,22 +1623,32 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       // Removed emoji print statement
       _loadCurrentWeekData();
     }
-    
+
     // Notify parent of week change and current data
     final employeeList = _getEmployeeList();
     widget.onRosterChanged(employeeList);
     _notifyCurrentWeekDataChanged();
   }
 
-  // Show dialog to ask user if they want to create a new roster for the next week
-  void _showCreateNewWeekDialog(String newWeekKey, Map<String, Map<String, Shift>> currentWeekShifts) {
-    // Extract week number from current roster name
-    final currentRosterName = widget.rosterName;
-    final weekMatch = RegExp(r'Week (\d+)').firstMatch(currentRosterName);
-    final currentWeekNumber = weekMatch != null ? int.parse(weekMatch.group(1)!) : null;
-    final nextWeekNumber = currentWeekNumber != null ? currentWeekNumber + 1 : null;
-    final suggestedName = nextWeekNumber != null ? 'Week $nextWeekNumber' : 'Next Week';
+  // Get current week shifts for copying to new week
+  Map<String, Map<String, Shift>> _getCurrentWeekShifts() {
+    Map<String, Map<String, Shift>> currentWeekShifts = {};
+    final employeeList = _getEmployeeList();
+    for (final employee in employeeList) {
+      final shiftsCopy = <String, Shift>{};
+      // Create deep copies for copying
+      for (final entry in employee.shifts.entries) {
+        final shiftJson = entry.value.toJson();
+        shiftsCopy[entry.key] = Shift.fromJson(shiftJson);
+      }
+      currentWeekShifts[employee.name] = shiftsCopy;
+    }
+    return currentWeekShifts;
+  }
 
+  // Show dialog to ask user if they want to create a new roster for the next week
+  void _showCreateNewWeekDialog(
+      String newWeekKey, Map<String, Map<String, Shift>> currentWeekShifts) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1597,7 +1665,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
             ),
             const SizedBox(width: 12),
             const Text(
-              'Create New Week?',
+              'Moving to New Week',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ],
@@ -1607,28 +1675,67 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'You\'re moving to a new week. Would you like to:',
+              'How would you like to set up the new week?',
               style: TextStyle(fontSize: 16, color: _darkGray),
             ),
             const SizedBox(height: 16),
+
+            // Option 1: Fresh clean roster
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: _primaryBlue.withOpacity(0.05),
+                color: Colors.green.withOpacity(0.05),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _primaryBlue.withOpacity(0.2)),
+                border: Border.all(color: Colors.green.withOpacity(0.3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.add_circle, color: _primaryBlue, size: 16),
+                      Icon(Icons.cleaning_services,
+                          color: Colors.green, size: 16),
                       const SizedBox(width: 8),
                       Text(
-                        'Create "$suggestedName" roster',
-                        style: const TextStyle(
+                        'Fresh Clean Roster',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.green.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Keep only staff names, start with empty schedule. Perfect for creating a completely new roster.',
+                    style: TextStyle(color: _darkGray, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Option 2: Copy entire roster
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _primaryBlue.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _primaryBlue.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.copy_all, color: _primaryBlue, size: 16),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Copy Entire Roster',
+                        style: TextStyle(
                           fontWeight: FontWeight.w600,
                           color: _primaryBlue,
                         ),
@@ -1637,40 +1744,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'This will create a separate roster entry that appears in your roster list, using the current week\'s schedule as a template.',
-                    style: TextStyle(color: _darkGray, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _lightGray,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _darkGray.withOpacity(0.2)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.copy, color: _darkGray, size: 16),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Just continue in current roster',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: _darkGray,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Copy the schedule to next week within this roster only.',
+                    'Copy all staff and their complete schedules. Great for repeating similar weekly patterns.',
                     style: TextStyle(color: _darkGray, fontSize: 12),
                   ),
                 ],
@@ -1682,167 +1756,185 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
-              // Just copy data within current roster
-              _copyDataToCurrentWeek(newWeekKey, currentWeekShifts);
+              // Create fresh roster with only staff names
+              _createFreshRoster(newWeekKey);
             },
-            child: const Text('Continue Here'),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.green.shade700,
+            ),
+            child: const Text('Fresh Clean'),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.of(context).pop();
-              // Create new roster and navigate to it
-              _createNewWeekRoster(suggestedName, currentWeekShifts);
+              // Copy entire roster with all shifts
+              _copyEntireRoster(newWeekKey, currentWeekShifts);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: _primaryBlue,
               foregroundColor: Colors.white,
             ),
-            child: Text('Create $suggestedName'),
+            child: const Text('Copy All'),
           ),
         ],
       ),
     );
   }
 
-  // Copy data to current week (existing behavior)
-  void _copyDataToCurrentWeek(String newWeekKey, Map<String, Map<String, Shift>> currentWeekShifts) {
-    // Removed emoji print statement
-    _weeklyData[newWeekKey] = {};
-    final employeeList = _getEmployeeList();
-    for (final employee in employeeList) {
-      final employeeShifts = currentWeekShifts[employee.name] ?? <String, Shift>{};
-      _weeklyData[newWeekKey]![employee.name] = employeeShifts;
-      
-      // Update employee shifts with copied data
-      employee.shifts.clear();
-      employee.shifts.addAll(employeeShifts);
-      // Removed emoji print statement
-    }
-    
-    // Show notification that shifts were copied
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: _primaryBlue.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Icon(Icons.copy, color: _primaryBlue, size: 16),
-            ),
-            const SizedBox(width: 12),
-            const Text(
-              'Previous week\'s schedule copied to current week',
-              style: TextStyle(color: Colors.white),
-            ),
-          ],
-        ),
-        backgroundColor: _primaryBlue,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  }
+  // Create fresh roster with only staff names (no shifts)
+  void _createFreshRoster(String newWeekKey) async {
+    print('🧹 Creating fresh roster for week: $newWeekKey');
 
-  // Create new roster for next week
-  Future<void> _createNewWeekRoster(String newRosterName, Map<String, Map<String, Shift>> currentWeekShifts) async {
     try {
-      // Create employee list with copied shifts
+      // Create new employees with only names (no shifts)
       final newEmployees = <Employee>[];
       final employeeList = _getEmployeeList();
       for (final employee in employeeList) {
-        final employeeShifts = currentWeekShifts[employee.name] ?? <String, Shift>{};
         final newEmployee = Employee(
           name: employee.name,
-          shifts: Map<String, Shift>.from(employeeShifts),
-          accumulatedWorkedHours: employee.accumulatedWorkedHours,
-          accumulatedTotalHours: employee.accumulatedTotalHours,
-          accumulatedHolidayHours: employee.accumulatedHolidayHours,
+          shifts: <String, Shift>{}, // Empty shifts
+          accumulatedWorkedHours: 0,
+          accumulatedTotalHours: 0,
+          accumulatedHolidayHours: 0,
           employeeColor: employee.employeeColor,
-          rosterStartDate: _currentWeek, // Set to new week's start date
-          rosterEndDate: _currentWeek.add(const Duration(days: 6)), // End of new week
+          rosterStartDate: DateTime.now(),
+          rosterEndDate: DateTime.now().add(const Duration(days: 6)),
         );
         newEmployees.add(newEmployee);
       }
 
       // Create the new roster using RosterStorage
-      await RosterStorage.createRoster(newRosterName, newEmployees);
-      
-      // Show success message and offer to navigate to new roster
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Icon(Icons.check_circle, color: Colors.green, size: 16),
+      await RosterStorage.createRoster(newWeekKey, newEmployees);
+
+      // Navigate to the new roster
+      _navigateToWeekRoster(newWeekKey);
+
+      // Show notification
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(6),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Created "$newRosterName" roster with current schedule',
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            margin: const EdgeInsets.all(16),
-            duration: const Duration(seconds: 4),
-            action: SnackBarAction(
-              label: 'Open',
-              textColor: Colors.white,
-              onPressed: () {
-                // Navigate to the new roster
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (_) => RosterPage(rosterName: newRosterName)),
-                );
-              },
-            ),
+                child: Icon(Icons.cleaning_services,
+                    color: Colors.green, size: 16),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Fresh roster "$newWeekKey" created with staff names only',
+                style: TextStyle(color: Colors.white),
+              ),
+            ],
           ),
-        );
-        
-        // Also copy data to current week for immediate use
-        _copyDataToCurrentWeek(_getWeekKey(_currentWeek), currentWeekShifts);
-      }
+          backgroundColor: Colors.green.shade600,
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: const EdgeInsets.all(16),
+          duration: const Duration(seconds: 3),
+        ),
+      );
     } catch (e) {
-      // Removed emoji print statement
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error creating new roster: $e'),
-            backgroundColor: Colors.red,
-          ),
+      print('Error creating fresh roster: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error creating fresh roster: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // Copy entire roster with all shifts
+  void _copyEntireRoster(String newWeekKey,
+      Map<String, Map<String, Shift>> currentWeekShifts) async {
+    print('📋 Copying entire roster to week: $newWeekKey');
+
+    try {
+      // Create new employees with copied shifts
+      final newEmployees = <Employee>[];
+      final employeeList = _getEmployeeList();
+
+      for (final employee in employeeList) {
+        final employeeShifts =
+            currentWeekShifts[employee.name] ?? <String, Shift>{};
+
+        final newEmployee = Employee(
+          name: employee.name,
+          shifts: Map<String, Shift>.from(employeeShifts), // Copy all shifts
+          accumulatedWorkedHours: employee.accumulatedWorkedHours,
+          accumulatedTotalHours: employee.accumulatedTotalHours,
+          accumulatedHolidayHours: employee.accumulatedHolidayHours,
+          employeeColor: employee.employeeColor,
+          rosterStartDate: DateTime.now(),
+          rosterEndDate: DateTime.now().add(const Duration(days: 6)),
         );
-        // Fallback to copying data within current roster
-        _copyDataToCurrentWeek(_getWeekKey(_currentWeek), currentWeekShifts);
+        newEmployees.add(newEmployee);
+        print(
+            '  📅 Copied ${employeeShifts.length} shifts for ${employee.name}');
       }
+
+      // Create the new roster using RosterStorage
+      await RosterStorage.createRoster(newWeekKey, newEmployees);
+
+      // Navigate to the new roster
+      _navigateToWeekRoster(newWeekKey);
+
+      // Show notification
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: _primaryBlue.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(Icons.copy_all, color: _primaryBlue, size: 16),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Complete roster "$newWeekKey" copied with all shifts',
+                style: TextStyle(color: Colors.white),
+              ),
+            ],
+          ),
+          backgroundColor: _primaryBlue,
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: const EdgeInsets.all(16),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      print('Error copying entire roster: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error copying entire roster: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
   void _goToCurrentWeek() {
     // Safety check: Week-specific rosters should never use this method
-    final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
+    final isWeekSpecificRoster =
+        RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
     if (isWeekSpecificRoster) {
       // Removed emoji print statement
       return;
     }
-    
+
     // Save current week's data before navigation
     _saveCurrentWeekData();
-    
+
     final now = DateTime.now();
     final monday = now.subtract(Duration(days: now.weekday - 1));
     setState(() {
@@ -1851,10 +1943,10 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         widget.weekDates[_days[i]] = monday.add(Duration(days: i));
       }
     });
-    
+
     // Load data for current week
     _loadCurrentWeekData();
-    
+
     // Notify parent of week change and current data
     final employeeList = _getEmployeeList();
     widget.onRosterChanged(employeeList);
@@ -1867,9 +1959,9 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       setState(() {
         employee.shifts[day] = editedShift;
       });
-      
+
       final employeeList = _getEmployeeList();
-      
+
       // Save current week data after modification
       _saveCurrentWeekData();
       widget.onRosterChanged(employeeList);
@@ -1912,7 +2004,9 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                       radius: 24,
                       backgroundColor: _primaryBlue,
                       child: Text(
-                        employee.name.isNotEmpty ? employee.name[0].toUpperCase() : '?',
+                        employee.name.isNotEmpty
+                            ? employee.name[0].toUpperCase()
+                            : '?',
                         style: const TextStyle(
                           color: _white,
                           fontSize: 20,
@@ -1951,7 +2045,8 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                       ),
                       child: IconButton(
                         onPressed: () {
-                          print('🗑️ Delete button pressed for ${employee.name}');
+                          print(
+                              '🗑️ Delete button pressed for ${employee.name}');
                           _showDeleteEmployeeDialog(employee.name);
                         },
                         icon: const Icon(Icons.delete_outline),
@@ -1962,9 +2057,9 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                     ),
                   ],
                 ),
-                
+
                 const SizedBox(height: 24),
-                
+
                 // Stats cards
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -1974,19 +2069,31 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                   ),
                   child: Column(
                     children: [
-                      _buildStatRow('Total Hours', '${employee.totalWorkedHours.toStringAsFixed(1)} hrs', Icons.access_time),
+                      _buildStatRow(
+                          'Total Hours',
+                          '${employee.totalWorkedHours.toStringAsFixed(1)} hrs',
+                          Icons.access_time),
                       const SizedBox(height: 12),
-                      _buildStatRow('Paid Hours', '${employee.totalPaidHours.toStringAsFixed(1)} hrs', Icons.attach_money),
+                      _buildStatRow(
+                          'Paid Hours',
+                          '${employee.totalPaidHours.toStringAsFixed(1)} hrs',
+                          Icons.attach_money),
                       const SizedBox(height: 12),
-                      _buildStatRow('Holiday Hours', '${employee.holidayHoursEarnedThisWeek.toStringAsFixed(1)} hrs', Icons.beach_access),
+                      _buildStatRow(
+                          'Holiday Hours',
+                          '${employee.holidayHoursEarnedThisWeek.toStringAsFixed(1)} hrs',
+                          Icons.beach_access),
                       const SizedBox(height: 12),
-                      _buildStatRow('Break Time', '${employee.breakHours.toStringAsFixed(1)} hrs', Icons.coffee),
+                      _buildStatRow(
+                          'Break Time',
+                          '${employee.breakHours.toStringAsFixed(1)} hrs',
+                          Icons.coffee),
                     ],
                   ),
                 ),
-                
+
                 const SizedBox(height: 24),
-                
+
                 // Close button
                 SizedBox(
                   width: double.infinity,
@@ -2054,96 +2161,6 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       context,
       MaterialPageRoute(builder: (_) => RosterPage(rosterName: rosterName)),
     );
-  }
-
-  // Create a new week roster automatically and navigate to it
-  Future<void> _createAndNavigateToWeekRoster(String newRosterName, int direction) async {
-    try {
-      // Double-check if the roster actually exists before creating
-      // This prevents overwriting existing rosters
-      print('Double-checking if $newRosterName exists before creating...');
-      final prefs = await SharedPreferences.getInstance();
-      final rosterNames = prefs.getStringList('roster_names') ?? <String>[];
-      if (rosterNames.contains(newRosterName)) {
-        print('Roster $newRosterName already exists, navigating instead of creating');
-        _navigateToWeekRoster(newRosterName);
-        return;
-      }
-      
-      print('Creating new roster: $newRosterName');
-      // Create employee list with current shifts as template
-      final newEmployees = <Employee>[];
-      final employeeList = _getEmployeeList();
-      for (final employee in employeeList) {
-        // Create deep copies of current shifts
-        final shiftsCopy = <String, Shift>{};
-        for (final entry in employee.shifts.entries) {
-          final shiftJson = entry.value.toJson();
-          shiftsCopy[entry.key] = Shift.fromJson(shiftJson);
-        }
-        
-        final newEmployee = Employee(
-          name: employee.name,
-          shifts: shiftsCopy,
-          accumulatedWorkedHours: employee.accumulatedWorkedHours,
-          accumulatedTotalHours: employee.accumulatedTotalHours,
-          accumulatedHolidayHours: employee.accumulatedHolidayHours,
-          employeeColor: employee.employeeColor,
-          rosterStartDate: DateTime.now(), // Will be updated when roster is loaded
-          rosterEndDate: DateTime.now().add(const Duration(days: 6)),
-        );
-        newEmployees.add(newEmployee);
-      }
-
-      // Create the new roster using RosterStorage
-      print('Calling RosterStorage.createRoster for $newRosterName...');
-      await RosterStorage.createRoster(newRosterName, newEmployees);
-      print('Roster $newRosterName created successfully');
-      
-      // Show brief success message
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Icon(Icons.check_circle, color: Colors.green, size: 16),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Created "$newRosterName" roster',
-                  style: const TextStyle(color: Colors.white),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            margin: const EdgeInsets.all(16),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-      
-      // Navigate to the new roster
-      _navigateToWeekRoster(newRosterName);
-    } catch (e) {
-      // Removed emoji print statement
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error creating "$newRosterName": $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    }
   }
 
   void _showDeleteEmployeeDialog(String employeeName) {
@@ -2244,27 +2261,31 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     }
 
     // Check if employee already exists
-    bool exists = _independentEmployees.any((emp) => emp.name.toLowerCase() == name.toLowerCase());
+    bool exists = _independentEmployees
+        .any((emp) => emp.name.toLowerCase() == name.toLowerCase());
 
     setState(() {
       if (!exists) {
         _independentEmployees.add(Employee(name: name));
         print('Staff Management: Added "$name" to ${widget.rosterName}');
-        print('Staff Management: Current staff count: ${_independentEmployees.length}');
-        
+        print(
+            'Staff Management: Current staff count: ${_independentEmployees.length}');
+
         // Save to current week
         _saveCurrentWeekData();
-        
+
         // Add to all future weeks as well
         _addStaffToFutureWeeks(name);
       }
     });
 
     Navigator.of(context).pop();
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(exists ? 'Staff member "$name" already exists' : 'Added staff member "$name"'),
+        content: Text(exists
+            ? 'Staff member "$name" already exists'
+            : 'Added staff member "$name"'),
         backgroundColor: exists ? Colors.orange : Colors.green,
       ),
     );
@@ -2274,8 +2295,11 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     try {
       // Get all week rosters from storage
       final prefs = await SharedPreferences.getInstance();
-      final keys = prefs.getKeys().where((key) => key.startsWith('roster_Week')).toList();
-      
+      final keys = prefs
+          .getKeys()
+          .where((key) => key.startsWith('roster_Week'))
+          .toList();
+
       // Extract week numbers
       List<int> weekNumbers = [];
       for (String key in keys) {
@@ -2285,27 +2309,29 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           weekNumbers.add(weekNum);
         }
       }
-      
+
       // Get current week number
       final currentWeekStr = widget.rosterName.replaceFirst('Week', '');
       final currentWeekNum = int.tryParse(currentWeekStr);
-      
+
       if (currentWeekNum != null) {
         // Add to all future weeks
         for (int weekNum in weekNumbers) {
           if (weekNum > currentWeekNum) {
             final weekKey = 'roster_Week$weekNum';
             final weekData = prefs.getString(weekKey);
-            
+
             if (weekData != null) {
               try {
                 final Map<String, dynamic> data = json.decode(weekData);
                 List<dynamic> employeesJson = data['employees'] ?? [];
-                List<Employee> employees = employeesJson.map((e) => Employee.fromJson(e)).toList();
-                
+                List<Employee> employees =
+                    employeesJson.map((e) => Employee.fromJson(e)).toList();
+
                 // Check if employee already exists in this week
-                bool exists = employees.any((emp) => emp.name.toLowerCase() == name.toLowerCase());
-                
+                bool exists = employees
+                    .any((emp) => emp.name.toLowerCase() == name.toLowerCase());
+
                 if (!exists) {
                   employees.add(Employee(name: name));
                   data['employees'] = employees.map((e) => e.toJson()).toList();
@@ -2328,7 +2354,8 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     setState(() {
       _independentEmployees.removeWhere((emp) => emp.name == name);
       print('Staff Management: Removed "$name" from ${widget.rosterName}');
-      print('Staff Management: Current staff count: ${_independentEmployees.length}');
+      print(
+          'Staff Management: Current staff count: ${_independentEmployees.length}');
     });
 
     // Save current week
@@ -2339,12 +2366,12 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     }
 
     Navigator.of(context).pop();
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(removeFromFuture 
-          ? 'Removed "$name" from current and all future weeks' 
-          : 'Removed "$name" from ${widget.rosterName} only'),
+        content: Text(removeFromFuture
+            ? 'Removed "$name" from current and all future weeks'
+            : 'Removed "$name" from ${widget.rosterName} only'),
         backgroundColor: Colors.green,
       ),
     );
@@ -2353,8 +2380,11 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   Future<void> _removeStaffFromFutureWeeks(String name) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final keys = prefs.getKeys().where((key) => key.startsWith('roster_Week')).toList();
-      
+      final keys = prefs
+          .getKeys()
+          .where((key) => key.startsWith('roster_Week'))
+          .toList();
+
       // Extract week numbers
       List<int> weekNumbers = [];
       for (String key in keys) {
@@ -2364,24 +2394,25 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           weekNumbers.add(weekNum);
         }
       }
-      
+
       // Get current week number
       final currentWeekStr = widget.rosterName.replaceFirst('Week', '');
       final currentWeekNum = int.tryParse(currentWeekStr);
-      
+
       if (currentWeekNum != null) {
         // Remove from all future weeks
         for (int weekNum in weekNumbers) {
           if (weekNum > currentWeekNum) {
             final weekKey = 'roster_Week$weekNum';
             final weekData = prefs.getString(weekKey);
-            
+
             if (weekData != null) {
               try {
                 final Map<String, dynamic> data = json.decode(weekData);
                 List<dynamic> employeesJson = data['employees'] ?? [];
-                List<Employee> employees = employeesJson.map((e) => Employee.fromJson(e)).toList();
-                
+                List<Employee> employees =
+                    employeesJson.map((e) => Employee.fromJson(e)).toList();
+
                 // Remove the employee
                 employees.removeWhere((emp) => emp.name == name);
                 data['employees'] = employees.map((e) => e.toJson()).toList();
