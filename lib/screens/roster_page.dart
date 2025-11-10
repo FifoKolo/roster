@@ -9,6 +9,8 @@ import '../widgets/modern_roster_table.dart';
 import '../services/roster_storage.dart';
 import '../services/irish_bank_holidays.dart';
 import '../widgets/global_salary_settings_dialog.dart';
+import '../widgets/responsive_navigation.dart';
+import '../utils/responsive_helper.dart';
 import '../theme/app_theme.dart';
 
 
@@ -370,160 +372,437 @@ class _RosterPageState extends State<RosterPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.rosterName),
-        actions: [
-          // NEW: palette customization
-          IconButton(
-            tooltip: 'Customize appearance',
-            icon: const Icon(Icons.palette_outlined),
-            onPressed: _openCustomizeDialog,
-          ),
-          
-          // NEW: global salary settings
-          IconButton(
-            tooltip: 'Salary Settings',
-            icon: const Icon(Icons.settings),
-            onPressed: _openGlobalSalarySettings,
-          ),
-          
-          // Separator
-          const SizedBox(width: 8),
-          
-          // Staff Schedule Section
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.schedule),
-            tooltip: 'Staff Schedule Options',
-            onSelected: (String value) {
-              if (value == 'preview_public') {
-                _previewPublicPdf(employees);
-              } else if (value == 'download_public') {
-                _exportPublicPdf(employees);
-              }
-            },
-            itemBuilder: (BuildContext context) => [
-              const PopupMenuItem<String>(
-                value: 'preview_public',
-                child: Row(
-                  children: [
-                    Icon(Icons.visibility, size: 20),
-                    SizedBox(width: 8),
-                    Text('Preview Schedule'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem<String>(
-                value: 'download_public',
-                child: Row(
-                  children: [
-                    Icon(Icons.download, size: 20),
-                    SizedBox(width: 8),
-                    Text('Download Schedule'),
-                  ],
-                ),
-              ),
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final isLandscape = ResponsiveHelper.isLandscape(context);
+    
+    return ResponsiveNavigation(
+      title: widget.rosterName,
+      actions: _buildAppBarActions(context),
+      floatingActionButton: _buildFloatingActionButton(context),
+      child: _buildBody(context),
+    );
+  }
+
+  List<Widget> _buildAppBarActions(BuildContext context) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final isLandscape = ResponsiveHelper.isLandscape(context);
+    
+    // Base actions
+    final actions = <Widget>[
+      // Customize appearance
+      IconButton(
+        tooltip: 'Customize appearance',
+        icon: Icon(
+          Icons.palette_outlined,
+          size: ResponsiveHelper.getResponsiveIconSize(context, 24),
+        ),
+        onPressed: _openCustomizeDialog,
+      ),
+      
+      // Global salary settings
+      IconButton(
+        tooltip: 'Salary Settings',
+        icon: Icon(
+          Icons.settings,
+          size: ResponsiveHelper.getResponsiveIconSize(context, 24),
+        ),
+        onPressed: _openGlobalSalarySettings,
+      ),
+    ];
+
+    // Staff schedule menu
+    final scheduleAction = PopupMenuButton<String>(
+      icon: Icon(
+        Icons.schedule,
+        size: ResponsiveHelper.getResponsiveIconSize(context, 24),
+      ),
+      tooltip: 'Staff Schedule Options',
+      onSelected: (String value) {
+        if (value == 'preview_public') {
+          _previewPublicPdf(employees);
+        } else if (value == 'download_public') {
+          _exportPublicPdf(employees);
+        } else if (value == 'download_private') {
+          _exportPrivatePdf(employees);
+        }
+      },
+      itemBuilder: (BuildContext context) => [
+        const PopupMenuItem<String>(
+          value: 'preview_public',
+          child: Row(
+            children: [
+              Icon(Icons.visibility, size: 20),
+              SizedBox(width: 8),
+              Text('Preview Schedule'),
             ],
           ),
-          
-          // Management Report Section
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.analytics),
-            tooltip: 'Management Report Options',
-            onSelected: (String value) {
-              if (value == 'preview_private') {
-                _previewPrivatePdf(employees);
-              } else if (value == 'download_private') {
-                _exportPrivatePdf(employees);
-              }
-            },
-            itemBuilder: (BuildContext context) => [
-              const PopupMenuItem<String>(
-                value: 'preview_private',
-                child: Row(
-                  children: [
-                    Icon(Icons.preview, size: 20),
-                    SizedBox(width: 8),
-                    Text('Preview Report'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem<String>(
-                value: 'download_private',
-                child: Row(
-                  children: [
-                    Icon(Icons.file_download, size: 20),
-                    SizedBox(width: 8),
-                    Text('Download Report'),
-                  ],
-                ),
-              ),
+        ),
+        const PopupMenuItem<String>(
+          value: 'download_public',
+          child: Row(
+            children: [
+              Icon(Icons.download, size: 20),
+              SizedBox(width: 8),
+              Text('Download Schedule'),
             ],
+          ),
+        ),
+        const PopupMenuItem<String>(
+          value: 'download_private',
+          child: Row(
+            children: [
+              Icon(Icons.file_download, size: 20),
+              SizedBox(width: 8),
+              Text('Download Report'),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    // On mobile landscape, show fewer actions to save space
+    if (isMobile && isLandscape) {
+      return [
+        actions.first, // Keep customize appearance
+        scheduleAction, // Keep schedule menu
+      ];
+    }
+
+    // Full actions for other layouts
+    return [
+      ...actions,
+      const SizedBox(width: 8),
+      scheduleAction,
+    ];
+  }
+
+  Widget _buildFloatingActionButton(BuildContext context) {
+    final fabSize = ResponsiveHelper.getResponsiveFABSize(context);
+    final isMobile = ResponsiveHelper.isMobile(context);
+    
+    return SizedBox(
+      width: fabSize,
+      height: fabSize,
+      child: FloatingActionButton(
+        backgroundColor: AppTheme.primaryBlue,
+        foregroundColor: AppTheme.textInverse,
+        elevation: isMobile ? 6 : 8,
+        tooltip: 'Add Staff Member',
+        onPressed: () async {
+          if (ResponsiveHelper.shouldUseBottomSheet(context)) {
+            // Use bottom sheet for mobile portrait
+            await ResponsiveBottomSheet.show(
+              context: context,
+              title: 'Add Staff Member',
+              child: _buildAddStaffForm(context),
+            );
+          } else {
+            // Use existing flow for larger screens
+            await _handleAddStaff(context);
+          }
+        },
+        child: Icon(
+          Icons.add, 
+          size: ResponsiveHelper.getResponsiveIconSize(context, 24),
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final isLandscape = ResponsiveHelper.isLandscape(context);
+    
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          // Week Date Display
+          _buildWeekDateDisplay(context),
+          
+          // Roster Table
+          _buildRosterTable(context),
+          
+          // Add bottom padding for mobile devices
+          if (isMobile) 
+            SizedBox(height: ResponsiveHelper.getSafeAreaPadding(context).bottom + 80),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeekDateDisplay(BuildContext context) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final isLandscape = ResponsiveHelper.isLandscape(context);
+    final margin = ResponsiveHelper.getResponsiveMargin(context);
+    final padding = ResponsiveHelper.getResponsivePadding(context);
+    
+    return Container(
+      width: double.infinity,
+      margin: isMobile && isLandscape 
+        ? EdgeInsets.symmetric(horizontal: margin.horizontal, vertical: margin.vertical / 2)
+        : EdgeInsets.all(16),
+      padding: padding,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.blue.shade50, Colors.indigo.shade50],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.blue.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.shade100,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppTheme.primaryBlue,
-        foregroundColor: AppTheme.textInverse,
-        elevation: 8,
-        tooltip: 'Add Staff Member',
-        onPressed: () async {
-          print('🔍 Add staff button pressed');
-          
-          // Check if this is a week-specific roster
-          final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
-          
-          if (isWeekSpecificRoster) {
-            // For week-specific rosters, show a simple add dialog
-            final TextEditingController nameController = TextEditingController();
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.calendar_today, 
+                  color: Colors.blue.shade700, 
+                  size: ResponsiveHelper.getResponsiveIconSize(context, 20),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Week Period',
+                style: TextStyle(
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
+                  fontWeight: FontWeight.w600,
+                  color: Colors.blue.shade700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '${_formatDate(weekDates['Mon'] ?? DateTime.now())} - ${_formatDate(weekDates['Sun'] ?? DateTime.now())}',
+            style: TextStyle(
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 18),
+              fontWeight: FontWeight.bold,
+              color: Colors.blue.shade800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _getWeekDescription(weekDates['Mon'] ?? DateTime.now()),
+            style: TextStyle(
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+              color: Colors.blue.shade600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-            final result = await showDialog<bool>(
-              context: context,
-              builder: (BuildContext context) {
-                return AlertDialog(
-                  title: Text('Add Staff Member'),
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextField(
-                        controller: nameController,
-                        decoration: InputDecoration(
-                          labelText: 'Staff Name',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      SizedBox(height: 16),
-                      Text(
-                        'This staff member will be added to ${widget.rosterName} and all future weeks.',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(false),
-                      child: Text('Cancel'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () => Navigator.of(context).pop(true),
-                      child: Text('Add'),
-                    ),
-                  ],
-                );
-              },
+  Widget _buildRosterTable(BuildContext context) {
+    return Container(
+      margin: ResponsiveHelper.getResponsiveMargin(context),
+      child: FutureBuilder<List<Employee>>(
+        future: RosterStorage.loadRoster(widget.rosterName),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(),
             );
+          }
 
-            if (result == true && nameController.text.trim().isNotEmpty) {
-              final name = nameController.text.trim();
-              
-              // Check if already exists
-              bool exists = employees.any((emp) => emp.name.toLowerCase() == name.toLowerCase());
-              
-              if (exists) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Staff member "$name" already exists'),
-                    backgroundColor: Colors.orange,
+          if (snapshot.hasError) {
+            return Center(
+              child: Text('Error loading roster: ${snapshot.error}'),
+            );
+          }
+
+          final loadedEmployees = snapshot.data ?? [];
+          if (employees != loadedEmployees) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              setState(() {
+                employees = loadedEmployees;
+                _initWeekDates();
+              });
+            });
+          }
+
+          return ModernRosterTable(
+            employees: employees,
+            weekDates: weekDates,
+            onShiftTap: _showAddShiftDialog,
+            onEmployeeDelete: _deleteEmployee,
+            headerColor: headerColor,
+            headerTextColor: headerTextColor,
+            cellBorderColor: cellBorderColor,
+            dayOffBgColor: dayOffBgColor,
+            holidayBgColor: holidayBgColor,
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildAddStaffForm(BuildContext context) {
+    final TextEditingController nameController = TextEditingController();
+    
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextField(
+          controller: nameController,
+          decoration: InputDecoration(
+            labelText: 'Staff Name',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            contentPadding: ResponsiveHelper.getResponsivePadding(context),
+          ),
+          style: TextStyle(
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'This staff member will be added to ${widget.rosterName}.',
+          style: TextStyle(
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+            color: AppTheme.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 24),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            ElevatedButton(
+              style: AppTheme.primaryButtonStyle,
+              onPressed: () async {
+                final name = nameController.text.trim();
+                if (name.isNotEmpty) {
+                  Navigator.of(context).pop();
+                  await _addStaffMember(name);
+                }
+              },
+              child: Text(
+                'Add',
+                style: TextStyle(
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Future<void> _handleAddStaff(BuildContext context) async {
+    print('🔍 Add staff button pressed');
+    
+    // Check if this is a week-specific roster
+    final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
+    
+    if (isWeekSpecificRoster) {
+      // For week-specific rosters, show a simple add dialog
+      final TextEditingController nameController = TextEditingController();
+
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Add Staff Member'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Staff Name',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'This staff member will be added to ${widget.rosterName} and all future weeks.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Add'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (result == true) {
+        final name = nameController.text.trim();
+        await _addStaffMember(name);
+      }
+    } else {
+      // Use existing employee dialog for regular rosters
+      final result = await _showAddEmployeeDialog(context);
+      final name = result?.$1 ?? '';
+      if (name.isNotEmpty) {
+        await _addStaffMember(name);
+      }
+    }
+  }
+
+  Future<void> _addStaffMember(String name) async {
+    if (name.isEmpty) return;
+    
+    print('🔍 Adding employee: $name');
+    print('🔍 Current employee count: ${employees.length}');
+    
+    final newEmployee = Employee(
+      name: name,
+      rosterStartDate: weekDates['Mon'],
+      rosterEndDate: weekDates['Sun'],
+    );
+    
+    setState(() {
+      employees.add(newEmployee);
+    });
+    
+    print('✅ Employee added to local list. New count: ${employees.length}');
+    print('🔍 Saving roster...');
+    await _saveRoster(employees); // persist after add
+    print('✅ Roster saved successfully');
+  }
+
+  // Helper methods
+  String _formatDate(DateTime date) {
+    const months = [
                   ),
                 );
                 return;

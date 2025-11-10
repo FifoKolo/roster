@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/employee_model.dart';
-import 'roster_page.dart';
+import 'adaptive_roster_page.dart';
 import '../services/roster_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -1040,7 +1040,7 @@ class _RosterManagerState extends State<RosterManager> {
     print('🔍 About to navigate to RosterPage...');
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => RosterPage(rosterName: name)),
+      MaterialPageRoute(builder: (_) => AdaptiveRosterPage(rosterName: name)),
     ).then((_) {
       print('✅ Navigation completed - NOT reloading rosters to avoid loop');
       // Removed _loadRosters() to prevent potential loop
