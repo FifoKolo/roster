@@ -5,6 +5,8 @@ import '../models/employee_model.dart';
 import '../services/irish_bank_holidays.dart';
 import '../services/roster_storage.dart';
 import '../screens/roster_page.dart';
+import '../widgets/employee_profile_dialog.dart';
+import '../theme/app_theme.dart';
 
 class ModernRosterTable extends StatefulWidget {
   final List<Employee> employees;
@@ -52,11 +54,12 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   Shift? _clipboardShift;
 
   // Color scheme matching original app (white and blue theme)
-  static const Color _primaryBlue = Color(0xFF2196F3);
-  static const Color _lightGray = Color(0xFFF5F5F5);
-  static const Color _darkGray = Color(0xFF666666);
-  static const Color _white = Colors.white;
-  static const Color _lightBlue = Color(0xFFE3F2FD);
+  // Theme colors - using centralized AppTheme
+  static const Color _primaryBlue = AppTheme.primaryBlue;
+  static const Color _lightGray = AppTheme.backgroundSecondary;
+  static const Color _darkGray = AppTheme.textSecondary;
+  static const Color _white = AppTheme.surface;
+  static const Color _lightBlue = AppTheme.primaryBlueBackground;
 
   @override
   void initState() {
@@ -325,14 +328,13 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           _buildHeader(),
           _buildWeekNavigation(),
           _buildHelpfulTips(),
           _buildDayHeaders(),
-          Expanded(
-            child: _buildRosterContent(),
-          ),
+          _buildRosterContent(),
         ],
       ),
     );
@@ -772,17 +774,14 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     return Container(
       color: _white,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Employee rows
-          Expanded(
-            child: ListView.builder(
-              itemCount: employeeList.length,
-              itemBuilder: (context, index) {
-                final employee = employeeList[index];
-                return _buildEmployeeRow(employee, index);
-              },
-            ),
-          ),
+          // Employee rows - Use direct list instead of ListView with Expanded
+          ...employeeList.asMap().entries.map((entry) {
+            final index = entry.key;
+            final employee = entry.value;
+            return _buildEmployeeRow(employee, index);
+          }),
         ],
       ),
     );
@@ -1972,148 +1971,9 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   void _showEmployeeProfile(Employee employee) {
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Container(
-          constraints: BoxConstraints(
-            maxWidth: 500,
-            maxHeight: MediaQuery.of(context).size.height * 0.8,
-          ),
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: _white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Header with avatar and delete button
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 24,
-                      backgroundColor: _primaryBlue,
-                      child: Text(
-                        employee.name.isNotEmpty
-                            ? employee.name[0].toUpperCase()
-                            : '?',
-                        style: const TextStyle(
-                          color: _white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            employee.name,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: _darkGray,
-                            ),
-                          ),
-                          Text(
-                            'Employee Profile',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: _darkGray.withOpacity(0.7),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Delete button - more prominent
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: IconButton(
-                        onPressed: () {
-                          print(
-                              '🗑️ Delete button pressed for ${employee.name}');
-                          _showDeleteEmployeeDialog(employee.name);
-                        },
-                        icon: const Icon(Icons.delete_outline),
-                        tooltip: 'Remove Staff Member',
-                        iconSize: 24,
-                        color: Colors.red,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // Stats cards
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: _lightGray,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    children: [
-                      _buildStatRow(
-                          'Total Hours',
-                          '${employee.totalWorkedHours.toStringAsFixed(1)} hrs',
-                          Icons.access_time),
-                      const SizedBox(height: 12),
-                      _buildStatRow(
-                          'Paid Hours',
-                          '${employee.totalPaidHours.toStringAsFixed(1)} hrs',
-                          Icons.attach_money),
-                      const SizedBox(height: 12),
-                      _buildStatRow(
-                          'Holiday Hours',
-                          '${employee.holidayHoursEarnedThisWeek.toStringAsFixed(1)} hrs',
-                          Icons.beach_access),
-                      const SizedBox(height: 12),
-                      _buildStatRow(
-                          'Break Time',
-                          '${employee.breakHours.toStringAsFixed(1)} hrs',
-                          Icons.coffee),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Close button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _primaryBlue,
-                      foregroundColor: _white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Text('Close', style: TextStyle(fontSize: 16)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+      builder: (context) => EmployeeProfileDialog(
+        employee: employee,
+        weekDates: widget.weekDates,
       ),
     );
   }

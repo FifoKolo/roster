@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/employee_model.dart';
+import '../theme/app_theme.dart';
 
 class AddShiftDialog extends StatefulWidget {
   final Shift? shift;
@@ -23,6 +24,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
   late FocusNode endTimeFocus;
   Color? selectedColor;
   bool use24HourFormat = true; // Default to 24-hour format
+  bool? enablePaidBreak; // null means use global setting, true/false overrides
 
   String _calculateDuration(TimeOfDay start, TimeOfDay end) {
     double startHours = start.hour + start.minute / 60;
@@ -159,6 +161,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
     endTime = widget.shift?.endTime;
     isHoliday = widget.shift?.isHoliday ?? false;
     selectedColor = widget.shift?.customColor;
+    enablePaidBreak = widget.shift?.enablePaidBreak; // null means use global setting
 
     roleController = TextEditingController(text: widget.shift?.role ?? '');
     commentController = TextEditingController(text: widget.shift?.comment ?? '');
@@ -636,6 +639,157 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                 ],
               ),
             ),
+            const SizedBox(height: 16),
+            
+            // Paid Break Toggle - only show for non-holiday shifts
+            if (!isHoliday)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Paid Break Setting',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.indigo.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.indigo.shade200),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.info_outline, size: 16, color: Colors.indigo.shade600),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Automatic: 4.5hrs = 15min • 6hrs+ = 30min',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.indigo.shade700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Radio<bool?>(
+                                value: null,
+                                groupValue: enablePaidBreak,
+                                onChanged: (value) {
+                                  setState(() {
+                                    enablePaidBreak = value;
+                                  });
+                                },
+                                activeColor: Colors.indigo,
+                              ),
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      enablePaidBreak = null;
+                                    });
+                                  },
+                                  child: Text(
+                                    'Use Global Setting',
+                                    style: TextStyle(
+                                      color: Colors.indigo.shade700,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              Radio<bool?>(
+                                value: true,
+                                groupValue: enablePaidBreak,
+                                onChanged: (value) {
+                                  setState(() {
+                                    enablePaidBreak = value;
+                                  });
+                                },
+                                activeColor: Colors.green,
+                              ),
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      enablePaidBreak = true;
+                                    });
+                                  },
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.check_circle, size: 16, color: Colors.green.shade600),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Enable Break for This Shift',
+                                        style: TextStyle(
+                                          color: Colors.green.shade700,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              Radio<bool?>(
+                                value: false,
+                                groupValue: enablePaidBreak,
+                                onChanged: (value) {
+                                  setState(() {
+                                    enablePaidBreak = value;
+                                  });
+                                },
+                                activeColor: Colors.orange,
+                              ),
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      enablePaidBreak = false;
+                                    });
+                                  },
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.cancel, size: 16, color: Colors.orange.shade600),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Disable Break for This Shift',
+                                        style: TextStyle(
+                                          color: Colors.orange.shade700,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             const SizedBox(height: 20),
             
             // Color picker with clean styling
@@ -746,6 +900,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                             customHolidayHours: isHoliday 
                                 ? (double.tryParse(holidayHoursController.text) ?? 8.0)
                                 : null,
+                            enablePaidBreak: enablePaidBreak,
                           ),
                         );
                       }

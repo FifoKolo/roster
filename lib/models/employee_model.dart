@@ -22,6 +22,7 @@ class Shift {
   final bool isHoliday;
   final Color? customColor; // <- optional custom cell color
   final double? customHolidayHours; // NEW: custom hours deducted for this holiday
+  final bool? enablePaidBreak; // NEW: per-shift toggle for paid break (null = use global setting)
 
   Shift({
     this.startTime,
@@ -31,6 +32,7 @@ class Shift {
     this.isHoliday = false,
     this.customColor, // <- new
     this.customHolidayHours, // NEW: defaults to null (uses 8 hours)
+    this.enablePaidBreak, // NEW: null means use global setting
   });
 
   double get duration {
@@ -61,6 +63,7 @@ class Shift {
         'isHoliday': isHoliday,
         'color': customColor?.value, // ARGB int
         'customHolidayHours': customHolidayHours, // NEW
+        'enablePaidBreak': enablePaidBreak, // NEW
       };
 
   static Shift fromJson(Map<String, dynamic> json) => Shift(
@@ -71,7 +74,31 @@ class Shift {
         isHoliday: (json['isHoliday'] as bool?) ?? false,
         customColor: (json['color'] is int) ? Color(json['color'] as int) : null,
         customHolidayHours: json['customHolidayHours'] as double?, // NEW
+        enablePaidBreak: json['enablePaidBreak'] as bool?, // NEW
       );
+
+  // Helper method to copy shift with new paid break setting
+  Shift copyWith({
+    TimeOfDay? startTime,
+    TimeOfDay? endTime,
+    String? role,
+    String? comment,
+    bool? isHoliday,
+    Color? customColor,
+    double? customHolidayHours,
+    bool? enablePaidBreak,
+  }) {
+    return Shift(
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      role: role ?? this.role,
+      comment: comment ?? this.comment,
+      isHoliday: isHoliday ?? this.isHoliday,
+      customColor: customColor ?? this.customColor,
+      customHolidayHours: customHolidayHours ?? this.customHolidayHours,
+      enablePaidBreak: enablePaidBreak ?? this.enablePaidBreak,
+    );
+  }
 }
 
 class Employee {
@@ -107,26 +134,60 @@ class Employee {
     return shifts.values.fold(0, (sum, shift) => sum + shift.duration);
   }
 
-  // Calculate break time based on hours worked (time deducted PER SHIFT for unpaid breaks)
-  double get breakHours {
+  // Calculate break time based on hours worked and global settings
+  double calculateBreakHours(bool enableAutomaticBreaks, String breakBehavior) {
+    if (!enableAutomaticBreaks) return 0.0;
+    
     double totalBreaks = 0.0;
     
     // Calculate breaks for EACH individual shift
     for (final shift in shifts.values) {
+      if (shift.isHoliday) continue; // No breaks for holiday shifts
+      
       final shiftHours = shift.duration;
-      if (shiftHours >= 6.0) {
-        totalBreaks += 0.5; // 30 minutes deducted per 6+ hour shift
-      } else if (shiftHours >= 4.5) {
-        totalBreaks += 0.25; // 15 minutes deducted per 4.5+ hour shift
+      bool shouldCalculateBreak = false;
+      
+      // Determine if break should be calculated based on behavior
+      switch (breakBehavior) {
+        case 'always_on':
+          shouldCalculateBreak = true;
+          break;
+        case 'always_off':
+          shouldCalculateBreak = false;
+          break;
+        case 'per_shift_toggle':
+        default:
+          // Use per-shift setting, defaulting to true if not set
+          shouldCalculateBreak = shift.enablePaidBreak ?? true;
+          break;
+      }
+      
+      if (shouldCalculateBreak) {
+        // Use automatic break calculation: 4.5hrs = 15min, 6hrs = 30min
+        if (shiftHours >= 6.0) {
+          totalBreaks += 0.5; // 30 minutes deducted per 6+ hour shift
+        } else if (shiftHours >= 4.5) {
+          totalBreaks += 0.25; // 15 minutes deducted per 4.5+ hour shift
+        }
       }
     }
     
     return totalBreaks;
   }
 
+  // Calculate break time based on hours worked (DEPRECATED - use calculateBreakHours with global settings)
+  double get breakHours {
+    return calculateBreakHours(true, 'per_shift_toggle');
+  }
+
   // Total scheduled hours (what appears on public schedule - no break deductions shown)
   double get totalScheduledHours {
     return totalWorkedHours; // Raw scheduled time for public viewing
+  }
+
+  // Total paid hours with global settings (scheduled hours MINUS unpaid breaks - for management/payroll)
+  double calculateTotalPaidHours(bool enableAutomaticBreaks, String breakBehavior) {
+    return totalWorkedHours - calculateBreakHours(enableAutomaticBreaks, breakBehavior);
   }
 
   // Total paid hours (scheduled hours MINUS unpaid breaks - for management/payroll)

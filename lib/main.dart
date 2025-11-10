@@ -23,6 +23,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/roster_manager.dart';
 import 'services/roster_storage.dart';
 import 'services/auth_service.dart';
+import 'theme/app_theme.dart';
 
 // Entry point
 void main() async {
@@ -54,7 +55,38 @@ class RosterApp extends StatelessWidget {
     return MaterialApp(
       title: 'Roster App',
       debugShowCheckedModeBanner: false, // Remove debug banner
-      theme: ThemeData(useMaterial3: true),
+      theme: ThemeData(
+        useMaterial3: true,
+        // Apply consistent color scheme
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: AppTheme.primaryBlue,
+          brightness: Brightness.light,
+        ),
+        // Apply custom button themes
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: AppTheme.primaryButtonStyle,
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: AppTheme.textButtonStyle,
+        ),
+        // Apply input decoration theme
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+            borderSide: BorderSide(color: AppTheme.borderPrimary),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+            borderSide: BorderSide(color: AppTheme.borderPrimary),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+            borderSide: BorderSide(color: AppTheme.primaryBlue, width: 2),
+          ),
+          filled: true,
+          fillColor: AppTheme.surface,
+        ),
+      ),
       home: AuthGate(
         skipAuth: localOnly, // NEW
         child: const RosterManager(),
