@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/salary_model.dart';
 import '../services/salary_service.dart';
-import '../theme/app_theme.dart';
 
 class SalaryProfileDialog extends StatefulWidget {
   final String employeeId;
