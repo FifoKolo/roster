@@ -12,9 +12,9 @@ class ResponsiveRosterPage extends StatefulWidget {
   final String rosterName;
 
   const ResponsiveRosterPage({
-    Key? key,
+    super.key,
     required this.rosterName,
-  }) : super(key: key);
+  });
 
   @override
   State<ResponsiveRosterPage> createState() => _ResponsiveRosterPageState();
@@ -430,10 +430,14 @@ class _ResponsiveRosterPageState extends State<ResponsiveRosterPage> {
     if (_isSameWeek(monday, currentWeekStart)) {
       return 'Current Week';
     } else if (monday.isBefore(currentWeekStart)) {
-      final weeksAgo = ((currentWeekStart.difference(monday).inDays) / 7).floor();
+      final weeksAgo = ((currentWeekStart.difference(monday).inDays) / 7).ceil();
       return '$weeksAgo week${weeksAgo == 1 ? '' : 's'} ago';
     } else {
-      final weeksAhead = ((monday.difference(currentWeekStart).inDays) / 7).floor();
+      final daysAhead = monday.difference(currentWeekStart).inDays;
+      if (daysAhead == 7) {
+        return 'Next Week';
+      }
+      final weeksAhead = (daysAhead / 7).ceil();
       return 'In $weeksAhead week${weeksAhead == 1 ? '' : 's'}';
     }
   }

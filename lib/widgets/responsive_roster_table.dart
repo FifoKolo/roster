@@ -12,13 +12,13 @@ class ResponsiveRosterTable extends StatelessWidget {
   final Function(Employee) onEmployeeDelete;
 
   const ResponsiveRosterTable({
-    Key? key,
+    super.key,
     required this.rosterTable,
     required this.employees,
     required this.weekDates,
     required this.onShiftTap,
     required this.onEmployeeDelete,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

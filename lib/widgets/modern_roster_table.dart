@@ -106,6 +106,19 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       print(
           '🔄 Updated independent employees: ${_independentEmployees.length}');
     }
+    
+    // Update current week when weekDates change (important for week-specific rosters)
+    if (widget.weekDates['Mon'] != oldWidget.weekDates['Mon']) {
+      final newMonday = widget.weekDates['Mon'];
+      if (newMonday != null && newMonday != _currentWeek) {
+        setState(() {
+          _currentWeek = newMonday;
+          print('🔄 Updated _currentWeek to: ${_currentWeek.toIso8601String().split('T')[0]}');
+        });
+        // Notify parent of the new week
+        _notifyCurrentWeekDataChanged();
+      }
+    }
   }
 
   @override
@@ -1785,6 +1798,42 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     print('🧹 Creating fresh roster for week: $newWeekKey');
 
     try {
+      // Parse the correct dates for the new week
+      DateTime mondayDate;
+      DateTime sundayDate;
+      
+      final weekMatch = RegExp(r'Week\s+(\d+)', caseSensitive: false).firstMatch(newWeekKey);
+      if (weekMatch != null) {
+        final weekNumber = int.tryParse(weekMatch.group(1)!);
+        if (weekNumber != null && weekNumber >= 1 && weekNumber <= 53) {
+          // Calculate Monday of the specified ISO week number in current year
+          final now = DateTime.now();
+          final year = now.year;
+          
+          // Find January 4th of the year (which is always in week 1)
+          final jan4 = DateTime(year, 1, 4);
+          // Find Monday of week 1 (Monday of the week containing January 4th)
+          final week1Monday = jan4.subtract(Duration(days: jan4.weekday - 1));
+          // Calculate the Monday of the target week
+          mondayDate = week1Monday.add(Duration(days: (weekNumber - 1) * 7));
+          sundayDate = mondayDate.add(Duration(days: 6));
+          
+          print('🔍 Calculated dates for fresh $newWeekKey: ${mondayDate.toIso8601String().split('T')[0]} to ${sundayDate.toIso8601String().split('T')[0]}');
+        } else {
+          // Fallback to current week if parsing fails
+          final now = DateTime.now();
+          mondayDate = now.subtract(Duration(days: now.weekday - 1));
+          sundayDate = mondayDate.add(Duration(days: 6));
+          print('⚠️ Using fallback dates for fresh $newWeekKey');
+        }
+      } else {
+        // Fallback to current week if no week number found
+        final now = DateTime.now();
+        mondayDate = now.subtract(Duration(days: now.weekday - 1));
+        sundayDate = mondayDate.add(Duration(days: 6));
+        print('⚠️ Using fallback dates for fresh $newWeekKey (no week number)');
+      }
+
       // Create new employees with only names (no shifts)
       final newEmployees = <Employee>[];
       final employeeList = _getEmployeeList();
@@ -1796,8 +1845,8 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           accumulatedTotalHours: 0,
           accumulatedHolidayHours: 0,
           employeeColor: employee.employeeColor,
-          rosterStartDate: DateTime.now(),
-          rosterEndDate: DateTime.now().add(const Duration(days: 6)),
+          rosterStartDate: mondayDate,
+          rosterEndDate: sundayDate,
         );
         newEmployees.add(newEmployee);
       }
@@ -1854,6 +1903,38 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     print('📋 Copying entire roster to week: $newWeekKey');
 
     try {
+      // Parse the correct dates for the new week
+      DateTime? mondayDate;
+      DateTime? sundayDate;
+      
+      final weekMatch = RegExp(r'Week\s+(\d+)', caseSensitive: false).firstMatch(newWeekKey);
+      if (weekMatch != null) {
+        final weekNumber = int.tryParse(weekMatch.group(1)!);
+        if (weekNumber != null && weekNumber >= 1 && weekNumber <= 53) {
+          // Calculate Monday of the specified ISO week number in current year
+          final now = DateTime.now();
+          final year = now.year;
+          
+          // Find January 4th of the year (which is always in week 1)
+          final jan4 = DateTime(year, 1, 4);
+          // Find Monday of week 1 (Monday of the week containing January 4th)
+          final week1Monday = jan4.subtract(Duration(days: jan4.weekday - 1));
+          // Calculate the Monday of the target week
+          mondayDate = week1Monday.add(Duration(days: (weekNumber - 1) * 7));
+          sundayDate = mondayDate.add(Duration(days: 6));
+          
+          print('🔍 Calculated dates for $newWeekKey: ${mondayDate.toIso8601String().split('T')[0]} to ${sundayDate.toIso8601String().split('T')[0]}');
+        }
+      }
+      
+      // Fallback to current week if parsing fails
+      if (mondayDate == null || sundayDate == null) {
+        final now = DateTime.now();
+        mondayDate = now.subtract(Duration(days: now.weekday - 1));
+        sundayDate = mondayDate.add(Duration(days: 6));
+        print('⚠️ Using fallback dates for $newWeekKey');
+      }
+
       // Create new employees with copied shifts
       final newEmployees = <Employee>[];
       final employeeList = _getEmployeeList();
@@ -1869,8 +1950,8 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           accumulatedTotalHours: employee.accumulatedTotalHours,
           accumulatedHolidayHours: employee.accumulatedHolidayHours,
           employeeColor: employee.employeeColor,
-          rosterStartDate: DateTime.now(),
-          rosterEndDate: DateTime.now().add(const Duration(days: 6)),
+          rosterStartDate: mondayDate,
+          rosterEndDate: sundayDate,
         );
         newEmployees.add(newEmployee);
         print(

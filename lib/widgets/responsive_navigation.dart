@@ -14,7 +14,7 @@ class ResponsiveNavigation extends StatelessWidget {
   final Widget? bottomSheet;
 
   const ResponsiveNavigation({
-    Key? key,
+    super.key,
     required this.child,
     required this.title,
     this.actions = const [],
@@ -23,7 +23,7 @@ class ResponsiveNavigation extends StatelessWidget {
     this.endDrawer,
     this.bottomNavigationBar,
     this.bottomSheet,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -119,8 +119,8 @@ class ResponsiveNavigation extends StatelessWidget {
     // Add safe area for mobile devices
     if (isMobile) {
       body = SafeArea(
-        child: body,
         minimum: ResponsiveHelper.getResponsiveMargin(context),
+        child: body,
       );
     }
     
@@ -154,8 +154,8 @@ class ResponsiveNavigation extends StatelessWidget {
         child: FloatingActionButton(
           onPressed: (floatingActionButton as FloatingActionButton).onPressed,
           backgroundColor: AppTheme.primaryBlue,
-          child: (floatingActionButton as FloatingActionButton).child,
           mini: true,
+          child: (floatingActionButton as FloatingActionButton).child,
         ),
       );
     }
@@ -239,10 +239,10 @@ class _BottomSheetContent extends StatelessWidget {
   final Widget child;
 
   const _BottomSheetContent({
-    Key? key,
+    super.key,
     this.title,
     required this.child,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

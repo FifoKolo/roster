@@ -61,7 +61,7 @@ class Shift {
         'role': role,
         'comment': comment, // NEW
         'isHoliday': isHoliday,
-        'color': customColor?.value, // ARGB int
+        'color': customColor?.toARGB32(), // ARGB int
         'customHolidayHours': customHolidayHours, // NEW
         'enablePaidBreak': enablePaidBreak, // NEW
       };
@@ -338,7 +338,7 @@ class Employee {
       'accumulatedWorkedHours': accumulatedWorkedHours,
       'accumulatedTotalHours': accumulatedTotalHours,
       'accumulatedHolidayHours': accumulatedHolidayHours,
-      'employeeColor': employeeColor?.value, // <- persist ARGB
+      'employeeColor': employeeColor?.toARGB32(), // <- persist ARGB
       'rosterStartDate': rosterStartDate?.millisecondsSinceEpoch,
       'rosterEndDate': rosterEndDate?.millisecondsSinceEpoch,
     };

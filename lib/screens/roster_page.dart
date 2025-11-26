@@ -1,22 +1,25 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
+import 'dart:typed_data';
 import '../models/employee_model.dart';
-import '../services/pdf_service.dart';
-import '../widgets/add_shift_dialog.dart';
-import '../widgets/modern_roster_table.dart';
 import '../services/roster_storage.dart';
-import '../services/irish_bank_holidays.dart';
+import '../services/pdf_service.dart';
+import '../widgets/modern_roster_table.dart';
+import '../widgets/responsive_roster_table.dart';
+import '../widgets/add_shift_dialog.dart';
 import '../widgets/global_salary_settings_dialog.dart';
-import '../widgets/responsive_navigation.dart';
 import '../utils/responsive_helper.dart';
 import '../theme/app_theme.dart';
 
-
+/// A responsive wrapper for the roster page that adapts to mobile devices
 class RosterPage extends StatefulWidget {
   final String rosterName;
-  const RosterPage({super.key, required this.rosterName});
+
+  const RosterPage({
+    super.key,
+    required this.rosterName,
+  });
 
   @override
   State<RosterPage> createState() => _RosterPageState();
@@ -25,58 +28,426 @@ class RosterPage extends StatefulWidget {
 class _RosterPageState extends State<RosterPage> {
   List<Employee> employees = [];
   Map<String, DateTime> weekDates = {};
-
+  bool isLoading = true;
+  
   // Current week's data for PDF generation
   List<Employee> currentWeekEmployees = [];
   DateTime currentWeekDate = DateTime.now();
 
-  // NEW: appearance state
-  Color? headerColor;
-  Color? headerTextColor;
-  Color? cellBorderColor;
-  Color? dayOffBgColor;
-  Color? holidayBgColor;
-
   @override
   void initState() {
-    print('🔍 RosterPage initState started for: ${widget.rosterName}');
     super.initState();
-    // _futureRoster = RosterStorage.loadRoster(widget.rosterName).then((data) { return data; });
-    print('🔍 Initializing week dates...');
+    _loadRosterData();
     _initWeekDates();
-    print('🔍 Loading style...');
-    _loadStyle(); // NEW
-    print('✅ RosterPage initState completed');
   }
 
-  Future<void> _loadStyle() async {
-    final map = await RosterStorage.loadStyle(widget.rosterName);
-    if (map == null) return;
-    setState(() {
-      headerColor = _c(map['headerColor']);
-      headerTextColor = _c(map['headerTextColor']);
-      cellBorderColor = _c(map['cellBorderColor']);
-      dayOffBgColor = _c(map['dayOffBgColor']);
-      holidayBgColor = _c(map['holidayBgColor']);
-    });
+  Future<void> _loadRosterData() async {
+    try {
+      final loadedEmployees = await RosterStorage.loadRoster(widget.rosterName);
+      
+      // Fix incorrect dates for week-specific rosters
+      final correctedEmployees = _fixWeekDatesIfNeeded(loadedEmployees);
+      
+      setState(() {
+        employees = correctedEmployees;
+        isLoading = false;
+        _updateWeekDatesFromRoster(correctedEmployees);
+      });
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading roster: $e')),
+        );
+      }
+    }
   }
 
-  Future<void> _saveStyle() async {
-    await RosterStorage.saveStyle(widget.rosterName, {
-      'headerColor': headerColor?.value,
-      'headerTextColor': headerTextColor?.value,
-      'cellBorderColor': cellBorderColor?.value,
-      'dayOffBgColor': dayOffBgColor?.value,
-      'holidayBgColor': holidayBgColor?.value,
-    });
+  List<Employee> _fixWeekDatesIfNeeded(List<Employee> employees) {
+    // Check if this is a week-specific roster
+    final weekMatch = RegExp(r'Week\s+(\d+)', caseSensitive: false).firstMatch(widget.rosterName);
+    if (weekMatch == null || employees.isEmpty) {
+      return employees;
+    }
+
+    final weekNumber = int.tryParse(weekMatch.group(1)!);
+    if (weekNumber == null || weekNumber < 1 || weekNumber > 53) {
+      return employees;
+    }
+
+    // Calculate what the correct dates should be for this week number
+    final now = DateTime.now();
+    final year = now.year;
+    final jan4 = DateTime(year, 1, 4);
+    final week1Monday = jan4.subtract(Duration(days: jan4.weekday - 1));
+    final correctMonday = week1Monday.add(Duration(days: (weekNumber - 1) * 7));
+    final correctSunday = correctMonday.add(Duration(days: 6));
+
+    // Check if the stored dates are incorrect
+    final storedMonday = employees.first.rosterStartDate;
+    if (storedMonday != null && storedMonday.difference(correctMonday).inDays.abs() > 0) {
+      print('🔧 Fixing incorrect dates for ${widget.rosterName}');
+      print('   Old: ${storedMonday.toIso8601String().split('T')[0]}');
+      print('   New: ${correctMonday.toIso8601String().split('T')[0]}');
+      
+      // Update all employees with correct dates
+      final fixedEmployees = employees.map((emp) => Employee(
+        name: emp.name,
+        shifts: emp.shifts,
+        accumulatedWorkedHours: emp.accumulatedWorkedHours,
+        accumulatedTotalHours: emp.accumulatedTotalHours,
+        accumulatedHolidayHours: emp.accumulatedHolidayHours,
+        employeeColor: emp.employeeColor,
+        rosterStartDate: correctMonday,
+        rosterEndDate: correctSunday,
+      )).toList();
+      
+      // Save the corrected dates back to storage
+      RosterStorage.saveRoster(widget.rosterName, fixedEmployees);
+      
+      return fixedEmployees;
+    }
+
+    return employees;
   }
 
-  Color? _c(Object? v) => (v is int) ? Color(v) : null;
+  void _updateWeekDatesFromRoster(List<Employee> employees) {
+    // Get the week dates from the first employee (all should have the same dates)
+    if (employees.isNotEmpty && 
+        employees.first.rosterStartDate != null && 
+        employees.first.rosterEndDate != null) {
+      final monday = employees.first.rosterStartDate!;
+      print('📅 RosterPage: Updating week dates from employee data - Monday: ${monday.toIso8601String().split('T')[0]}');
+      for (int i = 0; i < 7; i++) {
+        final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        weekDates[dayNames[i]] = monday.add(Duration(days: i));
+        print('  ${dayNames[i]}: ${weekDates[dayNames[i]]!.toIso8601String().split('T')[0]}');
+      }
+    } else {
+      // Fallback to current week if no dates stored
+      print('⚠️ RosterPage: No dates in employee data, using current week fallback');
+      _initWeekDates();
+    }
+  }
+
+  void _initWeekDates() {
+    final now = DateTime.now();
+    final monday = now.subtract(Duration(days: now.weekday - 1));
+    for (int i = 0; i < 7; i++) {
+      final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      weekDates[dayNames[i]] = monday.add(Duration(days: i));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: _buildAppBar(),
+      body: isLoading ? _buildLoadingView() : _buildBody(),
+      floatingActionButton: _buildFloatingActionButton(),
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar() {
+    final appBarHeight = ResponsiveHelper.getResponsiveAppBarHeight(context);
+    
+    return PreferredSize(
+      preferredSize: Size.fromHeight(appBarHeight),
+      child: AppBar(
+        title: Text(
+          widget.rosterName,
+          style: TextStyle(
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 20),
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
+        backgroundColor: AppTheme.primaryBlue,
+        elevation: 4,
+        actions: _buildAppBarActions(),
+        iconTheme: IconThemeData(
+          color: Colors.white,
+          size: ResponsiveHelper.getResponsiveIconSize(context, 24),
+        ),
+        toolbarHeight: appBarHeight,
+      ),
+    );
+  }
+
+  List<Widget> _buildAppBarActions() {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final isLandscape = ResponsiveHelper.isLandscape(context);
+    
+    print('🖥️ AppBar Actions - isMobile: $isMobile, isLandscape: $isLandscape, screenWidth: ${MediaQuery.of(context).size.width}');
+    
+    if (isMobile && isLandscape) {
+      // Show minimal actions in mobile landscape
+      return [
+        PopupMenuButton<String>(
+          icon: Icon(
+            Icons.more_vert,
+            color: Colors.white,
+            size: ResponsiveHelper.getResponsiveIconSize(context, 24),
+          ),
+          onSelected: (String value) {
+            if (value == 'settings') {
+              _handleMenuAction(value);
+            } else if (value == 'preview_public') {
+              _previewPublicPdf(employees);
+            } else if (value == 'download_public') {
+              _exportPublicPdf(employees);
+            } else if (value == 'download_private') {
+              _exportPrivatePdf(employees);
+            }
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem<String>(
+              value: 'settings',
+              child: Row(
+                children: [
+                  Icon(Icons.settings, size: 20),
+                  SizedBox(width: 8),
+                  Text('Settings'),
+                ],
+              ),
+            ),
+                const PopupMenuItem<String>(
+              value: 'preview_public',
+              child: Row(
+                children: [
+                  Icon(Icons.visibility, size: 20),
+                  SizedBox(width: 8),
+                  Text('Preview Schedule'),
+                ],
+              ),
+            ),
+            const PopupMenuItem<String>(
+              value: 'download_public',
+              child: Row(
+                children: [
+                  Icon(Icons.download, size: 20),
+                  SizedBox(width: 8),
+                  Text('Download Schedule'),
+                ],
+              ),
+            ),
+            const PopupMenuItem<String>(
+              value: 'download_private',
+              child: Row(
+                children: [
+                  Icon(Icons.file_download, size: 20),
+                  SizedBox(width: 8),
+                  Text('Download Report'),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ];
+    }
+    
+    // Full actions for other layouts
+    return [
+      IconButton(
+        icon: Icon(
+          Icons.settings,
+          color: Colors.white,
+          size: ResponsiveHelper.getResponsiveIconSize(context, 24),
+        ),
+        onPressed: () => _handleMenuAction('settings'),
+        tooltip: 'Settings',
+      ),
+      PopupMenuButton<String>(
+        icon: Icon(
+          Icons.schedule,
+          color: Colors.white,
+          size: ResponsiveHelper.getResponsiveIconSize(context, 24),
+        ),
+        tooltip: 'Staff Schedule Options',
+        onSelected: (String value) {
+          if (value == 'preview_public') {
+            _previewPublicPdf(employees);
+          } else if (value == 'download_public') {
+            _exportPublicPdf(employees);
+          } else if (value == 'download_private') {
+            _exportPrivatePdf(employees);
+          }
+        },
+        itemBuilder: (BuildContext context) => [
+          const PopupMenuItem<String>(
+            value: 'preview_public',
+            child: Row(
+              children: [
+                Icon(Icons.visibility, size: 20),
+                SizedBox(width: 8),
+                Text('Preview Schedule'),
+              ],
+            ),
+          ),
+          const PopupMenuItem<String>(
+            value: 'download_public',
+            child: Row(
+              children: [
+                Icon(Icons.download, size: 20),
+                SizedBox(width: 8),
+                Text('Download Schedule'),
+              ],
+            ),
+          ),
+          const PopupMenuItem<String>(
+            value: 'download_private',
+            child: Row(
+              children: [
+                Icon(Icons.file_download, size: 20),
+                SizedBox(width: 8),
+                Text('Download Report'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ];
+  }
+
+  Widget _buildLoadingView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryBlue),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Loading roster...',
+            style: TextStyle(
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
+              color: AppTheme.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    
+    if (isMobile) {
+      // Use responsive table wrapper for mobile
+      return SafeArea(
+        child: ResponsiveRosterTable(
+          rosterTable: _buildOriginalTable(),
+          employees: employees,
+          weekDates: weekDates,
+          onShiftTap: _handleShiftTap,
+          onEmployeeDelete: _deleteEmployee,
+        ),
+      );
+    } else {
+      // Use original table for desktop/tablet
+      return SingleChildScrollView(
+        child: Column(
+          children: [
+            _buildWeekHeader(),
+            _buildOriginalTable(),
+          ],
+        ),
+      );
+    }
+  }
+
+  Widget _buildWeekHeader() {
+    final firstDate = weekDates['Mon'] ?? DateTime.now();
+    final lastDate = weekDates['Sun'] ?? DateTime.now();
+    
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.blue.shade50, Colors.indigo.shade50],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.blue.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.shade100,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.calendar_today,
+                  color: Colors.blue.shade700,
+                  size: ResponsiveHelper.getResponsiveIconSize(context, 20),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Week Period',
+                style: TextStyle(
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
+                  fontWeight: FontWeight.w600,
+                  color: Colors.blue.shade700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '${_formatDate(firstDate)} - ${_formatDate(lastDate)}',
+            style: TextStyle(
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 18),
+              fontWeight: FontWeight.bold,
+              color: Colors.blue.shade800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _getWeekDescription(firstDate),
+            style: TextStyle(
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+              color: Colors.blue.shade600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOriginalTable() {
+    return ModernRosterTable(
+      key: ValueKey(widget.rosterName), // Force rebuild when roster changes
+      employees: employees,
+      weekDates: weekDates,
+      rosterName: widget.rosterName,
+      onEdit: _showAddShiftDialog,
+      onRosterChanged: _updateRoster,
+      onCurrentWeekDataChanged: _onCurrentWeekDataChanged,
+      onAddStaff: _addStaff,
+    );
+  }
 
   // Callback to receive current week data from ModernRosterTable
   void _onCurrentWeekDataChanged(List<Employee> weekEmployees, DateTime weekDate) {
-    print('📅 Current week data updated: Week of ${weekDate.toIso8601String().split('T')[0]}, ${weekEmployees.length} employees');
-    
     // Use Future.microtask to defer setState until after the current build cycle
     Future.microtask(() {
       if (mounted) {
@@ -88,138 +459,131 @@ class _RosterPageState extends State<RosterPage> {
     });
   }
 
-  void _initWeekDates() {
-    // This will be updated when roster data is loaded
-    // Default to current week for now
-    final now = DateTime.now();
-    final monday = now.subtract(Duration(days: now.weekday - 1));
-    for (int i = 0; i < 7; i++) {
-      weekDates[_dayName(i)] = monday.add(Duration(days: i));
-    }
-  }
-
-  void _updateWeekDatesFromRoster(List<Employee> employees) {
-    // Get the week dates from the first employee (all should have the same dates)
-    if (employees.isNotEmpty && 
-        employees.first.rosterStartDate != null && 
-        employees.first.rosterEndDate != null) {
-      final monday = employees.first.rosterStartDate!;
-      for (int i = 0; i < 7; i++) {
-        weekDates[_dayName(i)] = monday.add(Duration(days: i));
-      }
-      // setState() is now handled by the caller when needed
-    }
-  }
-
-  String _dayName(int i) {
-    const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return names[i];
-  }
-
-  Future<void> _saveRoster(List<Employee> employees) async {
-    print('🔍 _saveRoster called with ${employees.length} employees for roster: ${widget.rosterName}');
+  Widget _buildFloatingActionButton() {
+    final fabSize = ResponsiveHelper.getResponsiveFABSize(context);
+    final isMobile = ResponsiveHelper.isMobile(context);
     
-    // For week-specific rosters, update local state AND save to storage
-    final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
-    if (isWeekSpecificRoster) {
-      print('📌 Week-specific roster detected: ${widget.rosterName} - updating local state and saving');
-      // Update local state first
+    return SizedBox(
+      width: fabSize,
+      height: fabSize,
+      child: FloatingActionButton(
+        backgroundColor: AppTheme.primaryBlue,
+        foregroundColor: Colors.white,
+        elevation: isMobile ? 6 : 8,
+        tooltip: 'Add Staff Member',
+        onPressed: _addStaff,
+        child: Icon(
+          Icons.add,
+          size: ResponsiveHelper.getResponsiveIconSize(context, 24),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _addStaff() async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => _AddStaffDialog(),
+    );
+
+    if (result != null && result.isNotEmpty) {
+      final newEmployee = Employee(
+        name: result,
+        rosterStartDate: weekDates['Mon'],
+        rosterEndDate: weekDates['Sun'],
+      );
+
       setState(() {
-        this.employees = List.from(employees);
+        employees.add(newEmployee);
       });
-      // Then save to storage so it persists
+
       await RosterStorage.saveRoster(widget.rosterName, employees);
-      print('✅ Week-specific roster saved successfully');
-      return;
-    }
-    
-    // Debug: Print each employee's current hours and holiday calculations
-    for (final emp in employees) {
-      print('🔍 Employee ${emp.name}:');
-      print('  - totalWorkedHours = ${emp.totalWorkedHours}');
-      print('  - totalPaidHours = ${emp.totalPaidHours}');
-      print('  - holidayHoursEarnedThisWeek = ${emp.holidayHoursEarnedThisWeek}');
-      print('  - totalHolidayHoursUsed = ${emp.totalHolidayHoursUsed}');
-      print('  - accumulatedHolidayHours = ${emp.accumulatedHolidayHours}');
-      print('  - remainingAccumulatedHolidayHours = ${emp.remainingAccumulatedHolidayHours}');
-      for (final entry in emp.shifts.entries) {
-        final shift = entry.value;
-        print('  - ${entry.key}: ${shift.formatted()} (${shift.duration} hours) isHoliday: ${shift.isHoliday}');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Added staff member: $result'),
+            backgroundColor: AppTheme.success,
+          ),
+        );
       }
     }
+  }
+
+  Future<void> _deleteEmployee(Employee employee) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Employee'),
+        content: Text('Are you sure you want to delete ${employee.name}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: AppTheme.dangerButtonStyle,
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() {
+        employees.removeWhere((e) => e.name == employee.name);
+      });
+      await RosterStorage.saveRoster(widget.rosterName, employees);
+    }
+  }
+
+  void _handleShiftTap(BuildContext context, Employee employee, String day) async {
+    final currentShift = employee.shifts[day];
+    final result = await _showAddShiftDialog(context, currentShift);
     
+    if (result != null) {
+      setState(() {
+        employee.shifts[day] = result;
+        employee.calculateHours(); // Recalculate hours after shift change
+      });
+      await RosterStorage.saveRoster(widget.rosterName, employees);
+    }
+  }
+
+  Future<Shift?> _showAddShiftDialog(BuildContext context, Shift? currentShift) async {
+    final result = await showDialog<Shift>(
+      context: context,
+      builder: (context) => AddShiftDialog(shift: currentShift),
+    );
+    return result;
+  }
+
+  Future<void> _updateRoster(List<Employee> updatedEmployees) async {
+    setState(() {
+      employees = updatedEmployees;
+    });
     await RosterStorage.saveRoster(widget.rosterName, employees);
-    print('✅ Roster saved successfully');
   }
 
-  Future<void> _exportPublicPdf(List<Employee> fallbackEmployees) async {
-    // Use current week's data if available, otherwise fallback to state employees
-    final employeesToUse = currentWeekEmployees.isNotEmpty ? currentWeekEmployees : fallbackEmployees;
-    
-    // Public PDF for staff - only shows schedule information
-    print('📄 Exporting Public PDF with ${employeesToUse.length} employees');
-    print('📅 Current week: ${currentWeekDate.toIso8601String().split('T')[0]}');
-    for (final emp in employeesToUse) {
-      print('  - ${emp.name}: ${emp.shifts.length} shifts');
-      for (final shift in emp.shifts.entries) {
-        print('    - ${shift.key}: ${shift.value.toJson()}');
-      }
+  void _handleMenuAction(String action) {
+    switch (action) {
+      case 'settings':
+        _openGlobalSalarySettings();
+        break;
     }
-    
-    final style = {
-      'headerColor': headerColor?.value,
-      'headerTextColor': headerTextColor?.value,
-      'cellBorderColor': cellBorderColor?.value,
-      'dayOffBgColor': dayOffBgColor?.value,
-      'holidayBgColor': holidayBgColor?.value,
-    };
-    await PdfService.sharePublicRosterPdf(context, employeesToUse, weekDates, style: style);
-  }
-
-  Future<void> _exportPrivatePdf(List<Employee> fallbackEmployees) async {
-    // Use current week's data if available, otherwise fallback to state employees
-    final employeesToUse = currentWeekEmployees.isNotEmpty ? currentWeekEmployees : fallbackEmployees;
-    
-    // Private PDF for management - includes hours and accumulated data
-    print('📄 Exporting Private PDF with ${employeesToUse.length} employees');
-    print('📅 Current week: ${currentWeekDate.toIso8601String().split('T')[0]}');
-    for (final emp in employeesToUse) {
-      print('  - ${emp.name}: ${emp.shifts.length} shifts');
-      for (final shift in emp.shifts.entries) {
-        print('    - ${shift.key}: ${shift.value.toJson()}');
-      }
-    }
-    
-    final style = {
-      'headerColor': headerColor?.value,
-      'headerTextColor': headerTextColor?.value,
-      'cellBorderColor': cellBorderColor?.value,
-      'dayOffBgColor': dayOffBgColor?.value,
-      'holidayBgColor': holidayBgColor?.value,
-    };
-    await PdfService.sharePrivateRosterPdf(context, employeesToUse, weekDates, style: style);
   }
 
   Future<void> _previewPublicPdf(List<Employee> fallbackEmployees) async {
     // Use current week's data if available, otherwise fallback to state employees
     final employeesToUse = currentWeekEmployees.isNotEmpty ? currentWeekEmployees : fallbackEmployees;
 
-    // Style info
-    final style = <String, int?>{
-      'headerColor': headerColor?.value,
-      'headerTextColor': headerTextColor?.value,
-      'cellBorderColor': cellBorderColor?.value,
-      'dayOffBgColor': dayOffBgColor?.value,
-      'holidayBgColor': holidayBgColor?.value,
-    };
-
     print('📄 Previewing Public PDF with ${employeesToUse.length} employees');
     
     try {
       final pdfBytes = await PdfService.buildPublicRosterPdf(
         employeesToUse, 
-        weekDates, 
-        style: style,
+        weekDates,
       );
       
       _showPdfPreviewDialog(pdfBytes, 'Staff Schedule Preview', false);
@@ -237,22 +601,12 @@ class _RosterPageState extends State<RosterPage> {
     // Use current week's data if available, otherwise fallback to state employees
     final employeesToUse = currentWeekEmployees.isNotEmpty ? currentWeekEmployees : fallbackEmployees;
 
-    // Style info
-    final style = <String, int?>{
-      'headerColor': headerColor?.value,
-      'headerTextColor': headerTextColor?.value,
-      'cellBorderColor': cellBorderColor?.value,
-      'dayOffBgColor': dayOffBgColor?.value,
-      'holidayBgColor': holidayBgColor?.value,
-    };
-
     print('📄 Previewing Private PDF with ${employeesToUse.length} employees');
     
     try {
       final pdfBytes = await PdfService.buildPrivateRosterPdf(
         employeesToUse, 
-        weekDates, 
-        style: style,
+        weekDates,
       );
       
       _showPdfPreviewDialog(pdfBytes, 'Management Report Preview', true);
@@ -339,7 +693,7 @@ class _RosterPageState extends State<RosterPage> {
                         // Download the PDF
                         final employeeList = currentWeekEmployees.isNotEmpty 
                             ? currentWeekEmployees 
-                            : <Employee>[];
+                            : employees;
                         if (isPrivate) {
                           _exportPrivatePdf(employeeList);
                         } else {
@@ -363,932 +717,144 @@ class _RosterPageState extends State<RosterPage> {
     );
   }
 
-  Future<Shift?> _openEditDialog(BuildContext context, Shift? currentShift) async {
-    return await showDialog<Shift>(
-      context: context,
-      builder: (_) => AddShiftDialog(shift: currentShift),
-    );
+  Future<void> _exportPublicPdf(List<Employee> fallbackEmployees) async {
+    // Use current week's data if available, otherwise fallback to state employees
+    final employeesToUse = currentWeekEmployees.isNotEmpty ? currentWeekEmployees : fallbackEmployees;
+    await PdfService.sharePublicRosterPdf(context, employeesToUse, weekDates);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final isMobile = ResponsiveHelper.isMobile(context);
-    final isLandscape = ResponsiveHelper.isLandscape(context);
-    
-    return ResponsiveNavigation(
-      title: widget.rosterName,
-      actions: _buildAppBarActions(context),
-      floatingActionButton: _buildFloatingActionButton(context),
-      child: _buildBody(context),
-    );
+  Future<void> _exportPrivatePdf(List<Employee> fallbackEmployees) async {
+    // Use current week's data if available, otherwise fallback to state employees
+    final employeesToUse = currentWeekEmployees.isNotEmpty ? currentWeekEmployees : fallbackEmployees;
+    await PdfService.sharePrivateRosterPdf(context, employeesToUse, weekDates);
   }
 
-  List<Widget> _buildAppBarActions(BuildContext context) {
-    final isMobile = ResponsiveHelper.isMobile(context);
-    final isLandscape = ResponsiveHelper.isLandscape(context);
-    
-    // Base actions
-    final actions = <Widget>[
-      // Customize appearance
-      IconButton(
-        tooltip: 'Customize appearance',
-        icon: Icon(
-          Icons.palette_outlined,
-          size: ResponsiveHelper.getResponsiveIconSize(context, 24),
-        ),
-        onPressed: _openCustomizeDialog,
-      ),
-      
-      // Global salary settings
-      IconButton(
-        tooltip: 'Salary Settings',
-        icon: Icon(
-          Icons.settings,
-          size: ResponsiveHelper.getResponsiveIconSize(context, 24),
-        ),
-        onPressed: _openGlobalSalarySettings,
-      ),
-    ];
-
-    // Staff schedule menu
-    final scheduleAction = PopupMenuButton<String>(
-      icon: Icon(
-        Icons.schedule,
-        size: ResponsiveHelper.getResponsiveIconSize(context, 24),
-      ),
-      tooltip: 'Staff Schedule Options',
-      onSelected: (String value) {
-        if (value == 'preview_public') {
-          _previewPublicPdf(employees);
-        } else if (value == 'download_public') {
-          _exportPublicPdf(employees);
-        } else if (value == 'download_private') {
-          _exportPrivatePdf(employees);
-        }
-      },
-      itemBuilder: (BuildContext context) => [
-        const PopupMenuItem<String>(
-          value: 'preview_public',
-          child: Row(
-            children: [
-              Icon(Icons.visibility, size: 20),
-              SizedBox(width: 8),
-              Text('Preview Schedule'),
-            ],
-          ),
-        ),
-        const PopupMenuItem<String>(
-          value: 'download_public',
-          child: Row(
-            children: [
-              Icon(Icons.download, size: 20),
-              SizedBox(width: 8),
-              Text('Download Schedule'),
-            ],
-          ),
-        ),
-        const PopupMenuItem<String>(
-          value: 'download_private',
-          child: Row(
-            children: [
-              Icon(Icons.file_download, size: 20),
-              SizedBox(width: 8),
-              Text('Download Report'),
-            ],
-          ),
-        ),
-      ],
-    );
-
-    // On mobile landscape, show fewer actions to save space
-    if (isMobile && isLandscape) {
-      return [
-        actions.first, // Keep customize appearance
-        scheduleAction, // Keep schedule menu
-      ];
-    }
-
-    // Full actions for other layouts
-    return [
-      ...actions,
-      const SizedBox(width: 8),
-      scheduleAction,
-    ];
-  }
-
-  Widget _buildFloatingActionButton(BuildContext context) {
-    final fabSize = ResponsiveHelper.getResponsiveFABSize(context);
-    final isMobile = ResponsiveHelper.isMobile(context);
-    
-    return SizedBox(
-      width: fabSize,
-      height: fabSize,
-      child: FloatingActionButton(
-        backgroundColor: AppTheme.primaryBlue,
-        foregroundColor: AppTheme.textInverse,
-        elevation: isMobile ? 6 : 8,
-        tooltip: 'Add Staff Member',
-        onPressed: () async {
-          if (ResponsiveHelper.shouldUseBottomSheet(context)) {
-            // Use bottom sheet for mobile portrait
-            await ResponsiveBottomSheet.show(
-              context: context,
-              title: 'Add Staff Member',
-              child: _buildAddStaffForm(context),
-            );
-          } else {
-            // Use existing flow for larger screens
-            await _handleAddStaff(context);
-          }
-        },
-        child: Icon(
-          Icons.add, 
-          size: ResponsiveHelper.getResponsiveIconSize(context, 24),
-          color: Colors.white,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBody(BuildContext context) {
-    final isMobile = ResponsiveHelper.isMobile(context);
-    final isLandscape = ResponsiveHelper.isLandscape(context);
-    
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          // Week Date Display
-          _buildWeekDateDisplay(context),
-          
-          // Roster Table
-          _buildRosterTable(context),
-          
-          // Add bottom padding for mobile devices
-          if (isMobile) 
-            SizedBox(height: ResponsiveHelper.getSafeAreaPadding(context).bottom + 80),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWeekDateDisplay(BuildContext context) {
-    final isMobile = ResponsiveHelper.isMobile(context);
-    final isLandscape = ResponsiveHelper.isLandscape(context);
-    final margin = ResponsiveHelper.getResponsiveMargin(context);
-    final padding = ResponsiveHelper.getResponsivePadding(context);
-    
-    return Container(
-      width: double.infinity,
-      margin: isMobile && isLandscape 
-        ? EdgeInsets.symmetric(horizontal: margin.horizontal, vertical: margin.vertical / 2)
-        : EdgeInsets.all(16),
-      padding: padding,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.blue.shade50, Colors.indigo.shade50],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.blue.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.blue.shade100,
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.calendar_today, 
-                  color: Colors.blue.shade700, 
-                  size: ResponsiveHelper.getResponsiveIconSize(context, 20),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'Week Period',
-                style: TextStyle(
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
-                  fontWeight: FontWeight.w600,
-                  color: Colors.blue.shade700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            '${_formatDate(weekDates['Mon'] ?? DateTime.now())} - ${_formatDate(weekDates['Sun'] ?? DateTime.now())}',
-            style: TextStyle(
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 18),
-              fontWeight: FontWeight.bold,
-              color: Colors.blue.shade800,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _getWeekDescription(weekDates['Mon'] ?? DateTime.now()),
-            style: TextStyle(
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-              color: Colors.blue.shade600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRosterTable(BuildContext context) {
-    return Container(
-      margin: ResponsiveHelper.getResponsiveMargin(context),
-      child: FutureBuilder<List<Employee>>(
-        future: RosterStorage.loadRoster(widget.rosterName),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-
-          if (snapshot.hasError) {
-            return Center(
-              child: Text('Error loading roster: ${snapshot.error}'),
-            );
-          }
-
-          final loadedEmployees = snapshot.data ?? [];
-          if (employees != loadedEmployees) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              setState(() {
-                employees = loadedEmployees;
-                _initWeekDates();
-              });
-            });
-          }
-
-          return ModernRosterTable(
-            employees: employees,
-            weekDates: weekDates,
-            onShiftTap: _showAddShiftDialog,
-            onEmployeeDelete: _deleteEmployee,
-            headerColor: headerColor,
-            headerTextColor: headerTextColor,
-            cellBorderColor: cellBorderColor,
-            dayOffBgColor: dayOffBgColor,
-            holidayBgColor: holidayBgColor,
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildAddStaffForm(BuildContext context) {
-    final TextEditingController nameController = TextEditingController();
-    
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        TextField(
-          controller: nameController,
-          decoration: InputDecoration(
-            labelText: 'Staff Name',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            contentPadding: ResponsiveHelper.getResponsivePadding(context),
-          ),
-          style: TextStyle(
-            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'This staff member will be added to ${widget.rosterName}.',
-          style: TextStyle(
-            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-            color: AppTheme.textSecondary,
-          ),
-        ),
-        const SizedBox(height: 24),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(
-                'Cancel',
-                style: TextStyle(
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-                  color: AppTheme.textSecondary,
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            ElevatedButton(
-              style: AppTheme.primaryButtonStyle,
-              onPressed: () async {
-                final name = nameController.text.trim();
-                if (name.isNotEmpty) {
-                  Navigator.of(context).pop();
-                  await _addStaffMember(name);
-                }
-              },
-              child: Text(
-                'Add',
-                style: TextStyle(
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Future<void> _handleAddStaff(BuildContext context) async {
-    print('🔍 Add staff button pressed');
-    
-    // Check if this is a week-specific roster
-    final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
-    
-    if (isWeekSpecificRoster) {
-      // For week-specific rosters, show a simple add dialog
-      final TextEditingController nameController = TextEditingController();
-
-      final result = await showDialog<bool>(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: const Text('Add Staff Member'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Staff Name',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'This staff member will be added to ${widget.rosterName} and all future weeks.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Add'),
-              ),
-            ],
-          );
-        },
-      );
-
-      if (result == true) {
-        final name = nameController.text.trim();
-        await _addStaffMember(name);
-      }
-    } else {
-      // Use existing employee dialog for regular rosters
-      final result = await _showAddEmployeeDialog(context);
-      final name = result?.$1 ?? '';
-      if (name.isNotEmpty) {
-        await _addStaffMember(name);
-      }
-    }
-  }
-
-  Future<void> _addStaffMember(String name) async {
-    if (name.isEmpty) return;
-    
-    print('🔍 Adding employee: $name');
-    print('🔍 Current employee count: ${employees.length}');
-    
-    final newEmployee = Employee(
-      name: name,
-      rosterStartDate: weekDates['Mon'],
-      rosterEndDate: weekDates['Sun'],
-    );
-    
-    setState(() {
-      employees.add(newEmployee);
-    });
-    
-    print('✅ Employee added to local list. New count: ${employees.length}');
-    print('🔍 Saving roster...');
-    await _saveRoster(employees); // persist after add
-    print('✅ Roster saved successfully');
-  }
-
-  // Helper methods
-  String _formatDate(DateTime date) {
-    const months = [
-                  ),
-                );
-                return;
-              }
-
-              // Add to current employees list
-              final newEmployee = Employee(
-                name: name,
-                rosterStartDate: weekDates['Mon'],
-                rosterEndDate: weekDates['Sun'],
-              );
-
-              setState(() {
-                employees.add(newEmployee);
-              });
-
-              // Save current week
-              await _saveRoster(employees);
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Added staff member "$name"'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-
-              print('Staff Management: Added "$name" to ${widget.rosterName}');
-            }
-          } else {
-            // Use existing employee dialog for regular rosters
-            final result = await _showAddEmployeeDialog(context);
-            final name = result?.$1 ?? '';
-            if (name.isNotEmpty) {
-              print('🔍 Adding employee: $name');
-              print('🔍 Current employee count: ${employees.length}');
-              
-              final newEmployee = Employee(
-                name: name,
-                rosterStartDate: weekDates['Mon'],
-                rosterEndDate: weekDates['Sun'],
-              );
-              
-              setState(() {
-                employees.add(newEmployee);
-              });
-              
-              print('✅ Employee added to local list. New count: ${employees.length}');
-              print('🔍 Saving roster...');
-              await _saveRoster(employees); // persist after add
-              print('✅ Roster saved successfully');
-            } else {
-              print('❌ No employee name provided');
-            }
-          }
-        },
-        child: const Icon(Icons.add, size: 28, color: Colors.white),
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Week Date Display (scrollable with page)
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.blue.shade50, Colors.indigo.shade50],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.blue.shade200),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.blue.shade100,
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade100,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(Icons.calendar_today, color: Colors.blue.shade700, size: 20),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Week Period',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.blue.shade700,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  '${_formatDate(weekDates['Mon'] ?? DateTime.now())} - ${_formatDate(weekDates['Sun'] ?? DateTime.now())}',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue.shade800,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _getWeekDescription(weekDates['Mon'] ?? DateTime.now()),
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.blue.shade600,
-                  ),
-                ),
-                
-                // Bank holidays in this week
-                ..._buildBankHolidayInfo(),
-              ],
-            ),
-          ),
-          
-          // Roster Table (takes natural height for proper scrolling)
-          StreamBuilder<List<Employee>>(
-              stream: RosterStorage.watchRoster(widget.rosterName),
-              builder: (context, snapshot) {
-                print('🔍 StreamBuilder state - hasData: ${snapshot.hasData}, hasError: ${snapshot.hasError}, connectionState: ${snapshot.connectionState}');
-                
-                if (snapshot.hasError) {
-                  print('❌ StreamBuilder error: ${snapshot.error}');
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.error, size: 64, color: Colors.red),
-                        SizedBox(height: 16),
-                        Text('Error loading roster: ${snapshot.error}'),
-                        SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: () => setState(() {}),
-                          child: Text('Retry'),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-                
-                if (snapshot.hasData) {
-                  final currentEmployees = snapshot.data!;
-                  print('✅ StreamBuilder received ${currentEmployees.length} employees');
-                  
-                  // Check if this is a week-specific roster
-                  final isWeekSpecificRoster = RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
-                  
-                  if (isWeekSpecificRoster) {
-                    // For week-specific rosters, use local state after initial load
-                    if (employees.isEmpty && currentEmployees.isNotEmpty) {
-                      print('🔄 Week-specific roster initial load');
-                      Future.microtask(() {
-                        if (mounted) {
-                          setState(() {
-                            employees = List.from(currentEmployees);
-                            _updateWeekDatesFromRoster(currentEmployees);
-                          });
-                        }
-                      });
-                    }
-                    
-                    // Always use local employees state for week-specific rosters
-                    print('📌 Week-specific roster: using local employees (${employees.length} staff)');
-                    return ModernRosterTable(
-                      employees: employees,
-                      weekDates: weekDates,
-                      onEdit: _openEditDialog,
-                      onRosterChanged: (list) => _saveRoster(list),
-                      onCurrentWeekDataChanged: _onCurrentWeekDataChanged,
-                      rosterName: widget.rosterName,
-                    );
-                  } else {
-                    // For regular rosters, only update if this is initial load or external change
-                    if (employees.length != currentEmployees.length || 
-                        (employees.isEmpty && currentEmployees.isNotEmpty)) {
-                      print('🔄 Updating employees list from stream');
-                      Future.microtask(() {
-                        if (mounted) {
-                          setState(() {
-                            employees = List.from(currentEmployees);
-                            _updateWeekDatesFromRoster(currentEmployees);
-                          });
-                        }
-                      });
-                    }
-                    
-                    // Use stream data for regular rosters
-                    return ModernRosterTable(
-                      employees: currentEmployees,
-                      weekDates: weekDates,
-                      onEdit: _openEditDialog,
-                      onRosterChanged: (list) => _saveRoster(list),
-                      onCurrentWeekDataChanged: _onCurrentWeekDataChanged,
-                      rosterName: widget.rosterName,
-                    );
-                  }
-                }
-                
-                print('🔍 StreamBuilder showing loading spinner...');
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 16),
-                      Text('Loading roster...'),
-                      SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () async {
-                          print('🔄 Manual reload requested');
-                          // Force reload data from storage
-                          try {
-                            final loadedEmployees = await RosterStorage.loadRoster(widget.rosterName);
-                            print('✅ Manual reload: loaded ${loadedEmployees.length} employees');
-                            if (mounted) {
-                              setState(() {
-                                employees = loadedEmployees;
-                                _updateWeekDatesFromRoster(loadedEmployees);
-                              });
-                            }
-                          } catch (e) {
-                            print('❌ Manual reload failed: $e');
-                          }
-                        },
-                        child: Text('Reload Data'),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-        ],
-        ),
-      ),
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
-  }
-
-  String _getWeekDescription(DateTime monday) {
-    final now = DateTime.now();
-    final currentMonday = now.subtract(Duration(days: now.weekday - 1));
-    
-    final diffDays = monday.difference(currentMonday).inDays;
-    
-    if (diffDays == 0) {
-      return 'This Week';
-    } else if (diffDays == 7) {
-      return 'Next Week';
-    } else if (diffDays > 0) {
-      final weeks = (diffDays / 7).round();
-      return '$weeks ${weeks == 1 ? 'week' : 'weeks'} ahead';
-    } else {
-      final weeks = (diffDays.abs() / 7).round();
-      return '$weeks ${weeks == 1 ? 'week' : 'weeks'} ago';
-    }
-  }
-
-  List<Widget> _buildBankHolidayInfo() {
-    final startDate = weekDates['Mon'];
-    final endDate = weekDates['Sun'];
-    
-    if (startDate == null || endDate == null) return [];
-    
-    // Get bank holidays in this week
-    final bankHolidays = IrishBankHolidays.getHolidaysInRange(startDate, endDate);
-    
-    if (bankHolidays.isEmpty) return [];
-    
-    return [
-      const SizedBox(height: 12),
-      Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.red.shade50, Colors.orange.shade50],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.red.shade200),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade100,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Icon(Icons.event, color: Colors.red.shade700, size: 16),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Bank ${bankHolidays.length == 1 ? 'Holiday' : 'Holidays'} This Week',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.red.shade700,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            ...bankHolidays.map((holiday) {
-              final style = IrishBankHolidays.getHolidayStyle(holiday);
-              const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-              final dayName = dayNames[holiday.date.weekday - 1];
-              
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(style.icon, size: 14, color: style.textColor),
-                    const SizedBox(width: 6),
-                    Text(
-                      '$dayName: ${holiday.name}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: style.textColor,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ],
-        ),
-      ),
-    ];
-  }
-
-  // NEW: appearance customization dialog
-  Future<void> _openCustomizeDialog() async {
-    Color? h = headerColor ?? Colors.blueGrey.shade100;
-    Color? ht = headerTextColor ?? Colors.black87;
-    Color? cb = cellBorderColor ?? Colors.grey.shade400;
-    Color? dof = dayOffBgColor ?? Colors.grey.shade100;
-    Color? hol = holidayBgColor ?? Colors.red.shade50;
-
-    Color? pick = await _pickColor(context, h, title: 'Header background');
-    if (pick != null) h = pick;
-    pick = await _pickColor(context, ht, title: 'Header text color');
-    if (pick != null) ht = pick;
-    pick = await _pickColor(context, cb, title: 'Cell border color');
-    if (pick != null) cb = pick;
-    pick = await _pickColor(context, dof, title: 'Day-off background');
-    if (pick != null) dof = pick;
-    pick = await _pickColor(context, hol, title: 'Holiday background');
-    if (pick != null) hol = pick;
-
-    setState(() {
-      headerColor = h;
-      headerTextColor = ht;
-      cellBorderColor = cb;
-      dayOffBgColor = dof;
-      holidayBgColor = hol;
-    });
-    await _saveStyle();
-  }
-
-  Future<Color?> _pickColor(BuildContext context, Color? initial, {String? title}) async {
-    final presets = <Color>[
-      Colors.white, Colors.black, Colors.grey.shade200, Colors.grey.shade600,
-      Colors.red.shade100, Colors.red.shade300, Colors.red.shade600,
-      Colors.orange.shade100, Colors.orange.shade300, Colors.orange.shade600,
-      Colors.amber.shade100, Colors.amber.shade300, Colors.amber.shade600,
-      Colors.yellow.shade100, Colors.yellow.shade300, Colors.yellow.shade600,
-      Colors.green.shade100, Colors.green.shade300, Colors.green.shade700,
-      Colors.teal.shade100, Colors.teal.shade300, Colors.teal.shade700,
-      Colors.blue.shade100, Colors.blue.shade300, Colors.blue.shade700,
-      Colors.indigo.shade100, Colors.indigo.shade300, Colors.indigo.shade700,
-      Colors.purple.shade100, Colors.purple.shade300, Colors.purple.shade700,
-      Colors.pink.shade100, Colors.pink.shade300, Colors.pink.shade700,
-    ];
-    Color? selected = initial;
-    return showDialog<Color?>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(title ?? 'Select color'),
-        content: SizedBox(
-          width: 340,
-          height: 240,
-          child: GridView.count(
-            crossAxisCount: 6,
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-            children: presets.map((c) {
-              final isSel = selected?.value == c.value;
-              return InkWell(
-                onTap: () => selected = c,
-                onDoubleTap: () => Navigator.pop(context, c),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: c,
-                    border: Border.all(color: isSel ? Colors.black : Colors.grey.shade400, width: isSel ? 2 : 1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, selected), child: const Text('Select')),
-        ],
-      ),
-    );
-  }
-
-  Future<(String, double)?> _showAddEmployeeDialog(BuildContext context) {
-    final nameCtl = TextEditingController();
-    final holidayCtl = TextEditingController(text: '0');
-    return showDialog<(String, double)?>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add Employee'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtl,
-              decoration: const InputDecoration(
-                labelText: 'Employee Name',
-                hintText: 'Enter employee name',
-              ),
-              autofocus: true,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: holidayCtl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                labelText: 'Custom holiday hours (optional)',
-                hintText: 'e.g. 2.5',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              final name = nameCtl.text.trim();
-              final custom = double.tryParse(holidayCtl.text.trim()) ?? 0.0;
-              Navigator.pop(context, (name, custom));
-            },
-            child: const Text('Add'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // NEW: global salary settings dialog
   Future<void> _openGlobalSalarySettings() async {
     await showDialog(
       context: context,
       builder: (context) => const GlobalSalarySettingsDialog(),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  String _getWeekDescription(DateTime monday) {
+    final now = DateTime.now();
+    final currentWeekStart = now.subtract(Duration(days: now.weekday - 1));
+    
+    if (_isSameWeek(monday, currentWeekStart)) {
+      return 'Current Week';
+    } else if (monday.isBefore(currentWeekStart)) {
+      final weeksAgo = ((currentWeekStart.difference(monday).inDays) / 7).ceil();
+      return '$weeksAgo week${weeksAgo == 1 ? '' : 's'} ago';
+    } else {
+      final daysAhead = monday.difference(currentWeekStart).inDays;
+      if (daysAhead == 7) {
+        return 'Next Week';
+      }
+      final weeksAhead = (daysAhead / 7).ceil();
+      return 'In $weeksAhead week${weeksAhead == 1 ? '' : 's'}';
+    }
+  }
+
+  bool _isSameWeek(DateTime a, DateTime b) {
+    return a.year == b.year &&
+           a.month == b.month &&
+           a.day == b.day;
+  }
+}
+
+class _AddStaffDialog extends StatefulWidget {
+  @override
+  _AddStaffDialogState createState() => _AddStaffDialogState();
+}
+
+class _AddStaffDialogState extends State<_AddStaffDialog> {
+  final TextEditingController _nameController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    final dialogWidth = ResponsiveHelper.getResponsiveDialogWidth(context);
+    
+    return Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Container(
+        width: dialogWidth,
+        padding: ResponsiveHelper.getResponsivePadding(context),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Add Staff Member',
+              style: TextStyle(
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 18),
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _nameController,
+              decoration: InputDecoration(
+                labelText: 'Staff Name',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+              ),
+              style: TextStyle(
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton(
+                  style: AppTheme.primaryButtonStyle,
+                  onPressed: () {
+                    final name = _nameController.text.trim();
+                    if (name.isNotEmpty) {
+                      Navigator.of(context).pop(name);
+                    }
+                  },
+                  child: Text(
+                    'Add',
+                    style: TextStyle(
+                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
   }
 }

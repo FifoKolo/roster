@@ -154,8 +154,8 @@ class PdfService {
           margin: pw.EdgeInsets.all(20),
         ),
         build: (ctx) => [
-          pw.Text('Weekly Roster - Management Report (CONFIDENTIAL)', 
-                   style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: PdfColors.red700)),
+          pw.Text('Weekly Roster - Management Report', 
+                   style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
           pw.SizedBox(height: 8),
           pw.Text(
             '${dateFmt.format(weekDates[days.first] ?? DateTime.now())} - ${dateFmt.format(weekDates[days.last] ?? DateTime.now())}',
@@ -283,7 +283,6 @@ class PdfService {
           pw.Text('• Accum. Holiday: Total holiday hours available per employee', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
           pw.Text('• Remaining Holiday: Holiday hours left after this roster (negative = overused)', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
           pw.Text('• Use PAID hours for payroll calculations and wages', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-          pw.Text('• This report contains confidential payroll information - for management use only', style: pw.TextStyle(fontSize: 10)),
         ],
       ),
     );

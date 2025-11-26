@@ -32,14 +32,12 @@ class _RosterManagerState extends State<RosterManager> {
     try {
       // Use current week instead of asking user to select
       final now = DateTime.now();
-      final monday = now.subtract(Duration(days: now.weekday - 1));
-      final sunday = monday.add(const Duration(days: 6));
+      final currentMonday = now.subtract(Duration(days: now.weekday - 1));
       
-      // Calculate week number for default name
-      final firstDayOfYear = DateTime(monday.year, 1, 1);
-      final weekNumber = ((monday.difference(firstDayOfYear).inDays +
-              firstDayOfYear.weekday - 1) / 7)
-          .ceil();
+      // Calculate week number for default name using ISO week calculation
+      final jan4 = DateTime(now.year, 1, 4);
+      final week1Monday = jan4.subtract(Duration(days: jan4.weekday - 1));
+      final weekNumber = ((currentMonday.difference(week1Monday).inDays) / 7).floor() + 1;
 
       // Simple default name without dates (dates are shown in the app UI)
       final defaultName = 'Week $weekNumber';
@@ -52,6 +50,33 @@ class _RosterManagerState extends State<RosterManager> {
         return;
       }
       print('✅ Got roster name: $customName');
+
+      // Calculate the correct dates based on the roster name if it's a week-specific roster
+      DateTime monday;
+      DateTime sunday;
+      
+      final weekMatch = RegExp(r'Week\s+(\d+)', caseSensitive: false).firstMatch(customName);
+      if (weekMatch != null) {
+        final targetWeekNumber = int.tryParse(weekMatch.group(1)!);
+        if (targetWeekNumber != null && targetWeekNumber >= 1 && targetWeekNumber <= 53) {
+          // Calculate Monday of the specified ISO week number in current year
+          final year = now.year;
+          final jan4 = DateTime(year, 1, 4);
+          final week1Monday = jan4.subtract(Duration(days: jan4.weekday - 1));
+          monday = week1Monday.add(Duration(days: (targetWeekNumber - 1) * 7));
+          sunday = monday.add(Duration(days: 6));
+          print('🔍 Calculated dates for $customName: ${monday.toIso8601String().split('T')[0]} to ${sunday.toIso8601String().split('T')[0]}');
+        } else {
+          // Fallback to current week if week number is invalid
+          monday = currentMonday;
+          sunday = currentMonday.add(const Duration(days: 6));
+          print('⚠️ Using current week dates for $customName');
+        }
+      } else {
+        // For non-week-specific rosters, use current week
+        monday = currentMonday;
+        sunday = currentMonday.add(const Duration(days: 6));
+      }
 
       // Skip the choice dialog and go directly to staff names
       print('🔍 Getting initial staff names...');

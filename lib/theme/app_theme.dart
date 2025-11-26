@@ -90,7 +90,7 @@ class AppTheme {
     backgroundColor: primaryBlue,
     foregroundColor: textInverse,
     elevation: 2,
-    shadowColor: primaryBlue.withOpacity(0.3),
+    shadowColor: primaryBlue.withValues(alpha: 0.3),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
     textStyle: const TextStyle(
@@ -129,7 +129,7 @@ class AppTheme {
     backgroundColor: success,
     foregroundColor: textInverse,
     elevation: 2,
-    shadowColor: success.withOpacity(0.3),
+    shadowColor: success.withValues(alpha: 0.3),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
     textStyle: const TextStyle(
@@ -143,7 +143,7 @@ class AppTheme {
     backgroundColor: error,
     foregroundColor: textInverse,
     elevation: 2,
-    shadowColor: error.withOpacity(0.3),
+    shadowColor: error.withValues(alpha: 0.3),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
     textStyle: const TextStyle(
@@ -157,7 +157,7 @@ class AppTheme {
     backgroundColor: warning,
     foregroundColor: textInverse,
     elevation: 2,
-    shadowColor: warning.withOpacity(0.3),
+    shadowColor: warning.withValues(alpha: 0.3),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
     textStyle: const TextStyle(
@@ -177,7 +177,7 @@ class AppTheme {
     border: Border.all(color: borderPrimary),
     boxShadow: [
       BoxShadow(
-        color: Colors.black.withOpacity(0.04),
+        color: Colors.black.withValues(alpha: 0.04),
         blurRadius: 8,
         offset: const Offset(0, 2),
       ),
