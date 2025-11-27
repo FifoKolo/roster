@@ -192,11 +192,11 @@ class _ResponsiveRosterPageState extends State<ResponsiveRosterPage> {
   }
 
   Widget _buildBody() {
-    // Show the roster table with horizontal and vertical scrolling on all devices
-    return SafeArea(
+    // Show the roster table with proper scrolling for portrait mode
+    return SingleChildScrollView(
       child: SingleChildScrollView(
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
+        scrollDirection: Axis.horizontal,
+        child: IntrinsicWidth(
           child: ConstrainedBox(
             constraints: BoxConstraints(
               minWidth: MediaQuery.of(context).size.width,

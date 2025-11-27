@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import '../screens/roster_page.dart';
-import '../screens/responsive_roster_page.dart';
-import '../utils/responsive_helper.dart';
 
-/// A wrapper that automatically selects the appropriate roster page
-/// based on the device type and orientation
+/// A wrapper that uses the same roster page for all devices
 class AdaptiveRosterPage extends StatelessWidget {
   final String rosterName;
 
@@ -15,14 +12,7 @@ class AdaptiveRosterPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = ResponsiveHelper.isMobile(context);
-    
-    if (isMobile) {
-      // Use responsive page for mobile devices
-      return ResponsiveRosterPage(rosterName: rosterName);
-    } else {
-      // Use original page for desktop/tablet
-      return RosterPage(rosterName: rosterName);
-    }
+    // Use the same RosterPage for all devices (mobile, tablet, desktop)
+    return RosterPage(rosterName: rosterName);
   }
 }

@@ -6,7 +6,6 @@ import '../models/employee_model.dart';
 import '../services/roster_storage.dart';
 import '../services/pdf_service.dart';
 import '../widgets/modern_roster_table.dart';
-import '../widgets/responsive_roster_table.dart';
 import '../widgets/add_shift_dialog.dart';
 import '../widgets/global_salary_settings_dialog.dart';
 import '../utils/responsive_helper.dart';
@@ -144,6 +143,7 @@ class _RosterPageState extends State<RosterPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true, // Handle keyboard properly
       appBar: _buildAppBar(),
       body: isLoading ? _buildLoadingView() : _buildBody(),
       floatingActionButton: _buildFloatingActionButton(),
@@ -177,79 +177,9 @@ class _RosterPageState extends State<RosterPage> {
   }
 
   List<Widget> _buildAppBarActions() {
-    final isMobile = ResponsiveHelper.isMobile(context);
-    final isLandscape = ResponsiveHelper.isLandscape(context);
-    
-    print('🖥️ AppBar Actions - isMobile: $isMobile, isLandscape: $isLandscape, screenWidth: ${MediaQuery.of(context).size.width}');
-    
-    if (isMobile && isLandscape) {
-      // Show minimal actions in mobile landscape
-      return [
-        PopupMenuButton<String>(
-          icon: Icon(
-            Icons.more_vert,
-            color: Colors.white,
-            size: ResponsiveHelper.getResponsiveIconSize(context, 24),
-          ),
-          onSelected: (String value) {
-            if (value == 'settings') {
-              _handleMenuAction(value);
-            } else if (value == 'preview_public') {
-              _previewPublicPdf(employees);
-            } else if (value == 'download_public') {
-              _exportPublicPdf(employees);
-            } else if (value == 'download_private') {
-              _exportPrivatePdf(employees);
-            }
-          },
-          itemBuilder: (context) => [
-            const PopupMenuItem<String>(
-              value: 'settings',
-              child: Row(
-                children: [
-                  Icon(Icons.settings, size: 20),
-                  SizedBox(width: 8),
-                  Text('Settings'),
-                ],
-              ),
-            ),
-                const PopupMenuItem<String>(
-              value: 'preview_public',
-              child: Row(
-                children: [
-                  Icon(Icons.visibility, size: 20),
-                  SizedBox(width: 8),
-                  Text('Preview Schedule'),
-                ],
-              ),
-            ),
-            const PopupMenuItem<String>(
-              value: 'download_public',
-              child: Row(
-                children: [
-                  Icon(Icons.download, size: 20),
-                  SizedBox(width: 8),
-                  Text('Download Schedule'),
-                ],
-              ),
-            ),
-            const PopupMenuItem<String>(
-              value: 'download_private',
-              child: Row(
-                children: [
-                  Icon(Icons.file_download, size: 20),
-                  SizedBox(width: 8),
-                  Text('Download Report'),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ];
-    }
-    
-    // Full actions for other layouts
+    // Show schedule menu and settings for all devices
     return [
+      // Settings
       IconButton(
         icon: Icon(
           Icons.settings,
@@ -259,18 +189,21 @@ class _RosterPageState extends State<RosterPage> {
         onPressed: () => _handleMenuAction('settings'),
         tooltip: 'Settings',
       ),
+      // Schedule/PDF Menu
       PopupMenuButton<String>(
         icon: Icon(
-          Icons.schedule,
+          Icons.calendar_month,
           color: Colors.white,
           size: ResponsiveHelper.getResponsiveIconSize(context, 24),
         ),
-        tooltip: 'Staff Schedule Options',
+        tooltip: 'Schedule Options',
         onSelected: (String value) {
           if (value == 'preview_public') {
             _previewPublicPdf(employees);
           } else if (value == 'download_public') {
             _exportPublicPdf(employees);
+          } else if (value == 'preview_private') {
+            _previewPrivatePdf(employees);
           } else if (value == 'download_private') {
             _exportPrivatePdf(employees);
           }
@@ -280,9 +213,9 @@ class _RosterPageState extends State<RosterPage> {
             value: 'preview_public',
             child: Row(
               children: [
-                Icon(Icons.visibility, size: 20),
-                SizedBox(width: 8),
-                Text('Preview Schedule'),
+                Icon(Icons.visibility, size: 20, color: Colors.blue),
+                SizedBox(width: 12),
+                Text('Preview Staff Schedule'),
               ],
             ),
           ),
@@ -290,9 +223,19 @@ class _RosterPageState extends State<RosterPage> {
             value: 'download_public',
             child: Row(
               children: [
-                Icon(Icons.download, size: 20),
-                SizedBox(width: 8),
-                Text('Download Schedule'),
+                Icon(Icons.download, size: 20, color: Colors.green),
+                SizedBox(width: 12),
+                Text('Download Staff Schedule'),
+              ],
+            ),
+          ),
+          const PopupMenuItem<String>(
+            value: 'preview_private',
+            child: Row(
+              children: [
+                Icon(Icons.admin_panel_settings, size: 20, color: Colors.orange),
+                SizedBox(width: 12),
+                Text('Preview Management Report'),
               ],
             ),
           ),
@@ -300,9 +243,9 @@ class _RosterPageState extends State<RosterPage> {
             value: 'download_private',
             child: Row(
               children: [
-                Icon(Icons.file_download, size: 20),
-                SizedBox(width: 8),
-                Text('Download Report'),
+                Icon(Icons.file_download, size: 20, color: Colors.deepOrange),
+                SizedBox(width: 12),
+                Text('Download Management Report'),
               ],
             ),
           ),
@@ -333,30 +276,20 @@ class _RosterPageState extends State<RosterPage> {
   }
 
   Widget _buildBody() {
-    final isMobile = ResponsiveHelper.isMobile(context);
-    
-    if (isMobile) {
-      // Use responsive table wrapper for mobile
-      return SafeArea(
-        child: ResponsiveRosterTable(
-          rosterTable: _buildOriginalTable(),
-          employees: employees,
-          weekDates: weekDates,
-          onShiftTap: _handleShiftTap,
-          onEmployeeDelete: _deleteEmployee,
+    // Use the same layout for all devices - full roster table with scrolling
+    return SingleChildScrollView(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: IntrinsicWidth(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: MediaQuery.of(context).size.width,
+            ),
+            child: _buildOriginalTable(),
+          ),
         ),
-      );
-    } else {
-      // Use original table for desktop/tablet
-      return SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildWeekHeader(),
-            _buildOriginalTable(),
-          ],
-        ),
-      );
-    }
+      ),
+    );
   }
 
   Widget _buildWeekHeader() {

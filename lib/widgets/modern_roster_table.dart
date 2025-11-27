@@ -338,14 +338,17 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   Widget build(BuildContext context) {
     final isMobile = ResponsiveHelper.isMobile(context);
     final isLandscape = ResponsiveHelper.isLandscape(context);
+    final screenWidth = MediaQuery.of(context).size.width;
     
     return Container(
+      width: isMobile ? null : screenWidth, // Let mobile scroll, constrain desktop
       decoration: BoxDecoration(
         color: _lightGray,
         borderRadius: BorderRadius.circular(isMobile ? 8 : 12),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildHeader(),
           _buildWeekNavigation(),
@@ -387,7 +390,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
               ),
               const SizedBox(width: 12),
               const Text(
-                '[appName]',
+                'Roster IE',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
