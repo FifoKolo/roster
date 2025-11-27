@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:printing/printing.dart';
 import '../models/employee_model.dart';
 import '../services/roster_storage.dart';
+import '../services/pdf_service.dart';
 import '../widgets/modern_roster_table.dart';
 import '../widgets/add_shift_dialog.dart';
+import '../widgets/global_salary_settings_dialog.dart';
 import '../utils/responsive_helper.dart';
 import '../theme/app_theme.dart';
 
@@ -23,6 +26,10 @@ class _ResponsiveRosterPageState extends State<ResponsiveRosterPage> {
   List<Employee> employees = [];
   Map<String, DateTime> weekDates = {};
   bool isLoading = true;
+  
+  // Current week's data for PDF generation
+  List<Employee> currentWeekEmployees = [];
+  DateTime currentWeekDate = DateTime.now();
 
   @override
   void initState() {
@@ -96,64 +103,69 @@ class _ResponsiveRosterPageState extends State<ResponsiveRosterPage> {
   }
 
   List<Widget> _buildAppBarActions() {
-    final isMobile = ResponsiveHelper.isMobile(context);
-    final isLandscape = ResponsiveHelper.isLandscape(context);
-    
-    if (isMobile && isLandscape) {
-      // Show minimal actions in mobile landscape
-      return [
-        PopupMenuButton<String>(
-          icon: Icon(
-            Icons.more_vert,
-            color: Colors.white,
-            size: ResponsiveHelper.getResponsiveIconSize(context, 24),
-          ),
-          onSelected: _handleMenuAction,
-          itemBuilder: (context) => [
-            const PopupMenuItem<String>(
-              value: 'settings',
-              child: Row(
-                children: [
-                  Icon(Icons.settings, size: 20),
-                  SizedBox(width: 8),
-                  Text('Settings'),
-                ],
-              ),
-            ),
-            const PopupMenuItem<String>(
-              value: 'export',
-              child: Row(
-                children: [
-                  Icon(Icons.download, size: 20),
-                  SizedBox(width: 8),
-                  Text('Export'),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ];
-    }
-    
-    // Full actions for other layouts
+    // Portrait-friendly menu with all actions
     return [
+      // Schedule/PDF Menu
+      PopupMenuButton<String>(
+        icon: Icon(
+          Icons.calendar_month,
+          color: Colors.white,
+          size: ResponsiveHelper.getResponsiveIconSize(context, 24),
+        ),
+        tooltip: 'Schedule Actions',
+        onSelected: _handleScheduleAction,
+        itemBuilder: (context) => [
+          const PopupMenuItem<String>(
+            value: 'preview_public',
+            child: Row(
+              children: [
+                Icon(Icons.visibility, size: 20, color: Colors.blue),
+                SizedBox(width: 12),
+                Text('Preview Staff Schedule'),
+              ],
+            ),
+          ),
+          const PopupMenuItem<String>(
+            value: 'download_public',
+            child: Row(
+              children: [
+                Icon(Icons.download, size: 20, color: Colors.green),
+                SizedBox(width: 12),
+                Text('Download Staff Schedule'),
+              ],
+            ),
+          ),
+          const PopupMenuItem<String>(
+            value: 'preview_private',
+            child: Row(
+              children: [
+                Icon(Icons.admin_panel_settings, size: 20, color: Colors.orange),
+                SizedBox(width: 12),
+                Text('Preview Management Report'),
+              ],
+            ),
+          ),
+          const PopupMenuItem<String>(
+            value: 'download_private',
+            child: Row(
+              children: [
+                Icon(Icons.file_download, size: 20, color: Colors.deepOrange),
+                SizedBox(width: 12),
+                Text('Download Management Report'),
+              ],
+            ),
+          ),
+        ],
+      ),
+      // Settings
       IconButton(
         icon: Icon(
           Icons.settings,
           color: Colors.white,
           size: ResponsiveHelper.getResponsiveIconSize(context, 24),
         ),
-        onPressed: () => _handleMenuAction('settings'),
+        onPressed: _showSettings,
         tooltip: 'Settings',
-      ),
-      IconButton(
-        icon: Icon(
-          Icons.download,
-          color: Colors.white,
-          size: ResponsiveHelper.getResponsiveIconSize(context, 24),
-        ),
-        onPressed: () => _handleMenuAction('export'),
-        tooltip: 'Export',
       ),
     ];
   }
@@ -277,6 +289,7 @@ class _ResponsiveRosterPageState extends State<ResponsiveRosterPage> {
       rosterName: widget.rosterName,
       onEdit: _showAddShiftDialog,
       onRosterChanged: _updateRoster,
+      onCurrentWeekDataChanged: _onCurrentWeekDataChanged,
       onAddStaff: _addStaff,
     );
   }
@@ -388,21 +401,202 @@ class _ResponsiveRosterPageState extends State<ResponsiveRosterPage> {
     await RosterStorage.saveRoster(widget.rosterName, employees);
   }
 
-  void _handleMenuAction(String action) {
+  // PDF and Schedule Actions
+  void _handleScheduleAction(String action) {
     switch (action) {
-      case 'settings':
-        // TODO: Open settings dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Settings coming soon')),
-        );
+      case 'preview_public':
+        _previewPublicPdf();
         break;
-      case 'export':
-        // TODO: Export functionality
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Export coming soon')),
-        );
+      case 'download_public':
+        _exportPublicPdf();
+        break;
+      case 'preview_private':
+        _previewPrivatePdf();
+        break;
+      case 'download_private':
+        _exportPrivatePdf();
         break;
     }
+  }
+
+  void _showSettings() {
+    showDialog(
+      context: context,
+      builder: (context) => GlobalSalarySettingsDialog(),
+    );
+  }
+
+  Future<void> _previewPublicPdf() async {
+    try {
+      final pdf = await PdfService.buildPublicRosterPdf(
+        currentWeekEmployees.isEmpty ? employees : currentWeekEmployees,
+        weekDates,
+      );
+      
+      if (!mounted) return;
+      
+      await showDialog(
+        context: context,
+        builder: (context) => Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.95,
+            height: MediaQuery.of(context).size.height * 0.85,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.visibility, color: AppTheme.primaryBlue),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Staff Schedule Preview',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                const Divider(),
+                Expanded(
+                  child: PdfPreview(
+                    build: (format) => pdf,
+                    allowPrinting: true,
+                    allowSharing: true,
+                    canChangePageFormat: false,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error previewing PDF: $e')),
+      );
+    }
+  }
+
+  Future<void> _previewPrivatePdf() async {
+    try {
+      final pdf = await PdfService.buildPrivateRosterPdf(
+        currentWeekEmployees.isEmpty ? employees : currentWeekEmployees,
+        weekDates,
+      );
+      
+      if (!mounted) return;
+      
+      await showDialog(
+        context: context,
+        builder: (context) => Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.95,
+            height: MediaQuery.of(context).size.height * 0.85,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.admin_panel_settings, color: AppTheme.primaryBlue),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Management Report Preview',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                const Divider(),
+                Expanded(
+                  child: PdfPreview(
+                    build: (format) => pdf,
+                    allowPrinting: true,
+                    allowSharing: true,
+                    canChangePageFormat: false,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error previewing PDF: $e')),
+      );
+    }
+  }
+
+  Future<void> _exportPublicPdf() async {
+    try {
+      await PdfService.sharePublicRosterPdf(
+        context,
+        currentWeekEmployees.isEmpty ? employees : currentWeekEmployees,
+        weekDates,
+      );
+      
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Staff schedule PDF downloaded successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error exporting PDF: $e')),
+      );
+    }
+  }
+
+  Future<void> _exportPrivatePdf() async {
+    try {
+      await PdfService.sharePrivateRosterPdf(
+        context,
+        currentWeekEmployees.isEmpty ? employees : currentWeekEmployees,
+        weekDates,
+      );
+      
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Management report PDF downloaded successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error exporting PDF: $e')),
+      );
+    }
+  }
+
+  void _onCurrentWeekDataChanged(List<Employee> weekEmployees, DateTime weekDate) {
+    setState(() {
+      currentWeekEmployees = weekEmployees;
+      currentWeekDate = weekDate;
+    });
   }
 
   String _formatDate(DateTime date) {
