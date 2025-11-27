@@ -337,40 +337,23 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   @override
   Widget build(BuildContext context) {
     final isMobile = ResponsiveHelper.isMobile(context);
-    final screenWidth = MediaQuery.of(context).size.width;
+    final isLandscape = ResponsiveHelper.isLandscape(context);
     
     return Container(
       decoration: BoxDecoration(
         color: _lightGray,
         borderRadius: BorderRadius.circular(isMobile ? 8 : 12),
       ),
-      child: isMobile 
-        ? SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SizedBox(
-              width: screenWidth * 1.2, // Allow horizontal scrolling on mobile
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildHeader(),
-                  _buildWeekNavigation(),
-                  _buildHelpfulTips(),
-                  _buildDayHeaders(),
-                  _buildRosterContent(),
-                ],
-              ),
-            ),
-          )
-        : Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildHeader(),
-              _buildWeekNavigation(),
-              _buildHelpfulTips(),
-              _buildDayHeaders(),
-              _buildRosterContent(),
-            ],
-          ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildHeader(),
+          _buildWeekNavigation(),
+          if (!isMobile || isLandscape) _buildHelpfulTips(), // Hide tips on mobile portrait
+          _buildDayHeaders(),
+          _buildRosterContent(),
+        ],
+      ),
     );
   }
 
@@ -712,19 +695,22 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   }
 
   Widget _buildDayHeaders() {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final employeeNameWidth = isMobile ? 120.0 : 180.0;
+    
     return Container(
       color: _white,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 20),
       child: Row(
         children: [
           // Employee name column header
           Container(
-            width: 180,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: const Text(
-              'Employees',
+            width: employeeNameWidth,
+            padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 16),
+            child: Text(
+              'Staff',
               style: TextStyle(
-                fontSize: 16,
+                fontSize: isMobile ? 12 : 16,
                 fontWeight: FontWeight.w600,
                 color: _darkGray,
               ),
@@ -751,12 +737,13 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   }
 
   Widget _buildDayHeader(String day, DateTime? date, int dayIndex) {
+    final isMobile = ResponsiveHelper.isMobile(context);
     final bankHoliday =
         date != null ? IrishBankHolidays.getBankHoliday(date) : null;
     final isBankHoliday = bankHoliday != null;
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      padding: EdgeInsets.symmetric(vertical: isMobile ? 8 : 16),
       decoration: BoxDecoration(
         border: Border(
           left: BorderSide(
@@ -769,23 +756,25 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       child: Column(
         children: [
           Text(
-            day,
+            isMobile ? day.substring(0, 1) : day, // Show only first letter on mobile
             style: TextStyle(
-              fontSize: 16,
+              fontSize: isMobile ? 11 : 16,
               fontWeight: FontWeight.w600,
               color: isBankHoliday ? Colors.red : _primaryBlue,
             ),
           ),
           if (date != null) ...[
-            const SizedBox(height: 4),
+            SizedBox(height: isMobile ? 2 : 4),
             Text(
-              '${date.day}${_getOrdinalSuffix(date.day)} ${_getMonthAbbr(date.month)}',
+              isMobile 
+                ? '${date.day}' // Just day number on mobile
+                : '${date.day}${_getOrdinalSuffix(date.day)} ${_getMonthAbbr(date.month)}',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: isMobile ? 9 : 12,
                 color: isBankHoliday ? Colors.red : _darkGray,
               ),
             ),
-            if (isBankHoliday) ...[
+            if (isBankHoliday && !isMobile) ...[
               const SizedBox(height: 2),
               Text(
                 bankHoliday.name,
@@ -823,9 +812,11 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
 
   Widget _buildEmployeeRow(Employee employee, int index) {
     final isEvenRow = index % 2 == 0;
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final employeeNameWidth = isMobile ? 120.0 : 180.0;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 20),
       decoration: BoxDecoration(
         color: isEvenRow ? _lightGray.withOpacity(0.3) : _white,
         border: Border(
@@ -836,8 +827,8 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         children: [
           // Employee info
           Container(
-            width: 180,
-            padding: const EdgeInsets.symmetric(vertical: 12),
+            width: employeeNameWidth,
+            padding: EdgeInsets.symmetric(vertical: isMobile ? 8 : 12),
             child: _buildEmployeeInfo(employee),
           ),
 
@@ -858,6 +849,11 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   }
 
   Widget _buildEmployeeInfo(Employee employee) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final avatarRadius = isMobile ? 10.0 : 12.0;
+    final nameFontSize = isMobile ? 11.0 : 14.0;
+    final hoursFontSize = isMobile ? 9.0 : 12.0;
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -865,34 +861,36 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           children: [
             // Avatar
             CircleAvatar(
-              radius: 12,
+              radius: avatarRadius,
               backgroundColor: _primaryBlue,
               child: Text(
                 employee.name.isNotEmpty ? employee.name[0].toUpperCase() : '?',
-                style: const TextStyle(
+                style: TextStyle(
                   color: _white,
-                  fontSize: 12,
+                  fontSize: isMobile ? 10 : 12,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: isMobile ? 4 : 8),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     employee.name,
-                    style: const TextStyle(
-                      fontSize: 14,
+                    style: TextStyle(
+                      fontSize: nameFontSize,
                       fontWeight: FontWeight.w500,
                       color: _darkGray,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   Text(
                     '${employee.totalWorkedHours.toStringAsFixed(1)}hrs',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: hoursFontSize,
                       color: _darkGray.withOpacity(0.7),
                     ),
                   ),
@@ -901,8 +899,8 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
             ),
             // Delete button - compact size
             SizedBox(
-              width: 28,
-              height: 28,
+              width: isMobile ? 24 : 28,
+              height: isMobile ? 24 : 28,
               child: IconButton(
                 onPressed: () {
                   print('🗑️ Delete button clicked for ${employee.name}');
@@ -910,7 +908,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                 },
                 icon: const Icon(Icons.delete_outline),
                 tooltip: 'Remove ${employee.name}',
-                iconSize: 16,
+                iconSize: isMobile ? 14 : 16,
                 color: Colors.red,
                 padding: EdgeInsets.zero,
               ),

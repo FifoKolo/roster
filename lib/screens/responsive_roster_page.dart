@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../models/employee_model.dart';
 import '../services/roster_storage.dart';
 import '../widgets/modern_roster_table.dart';
-import '../widgets/responsive_roster_table.dart';
 import '../widgets/add_shift_dialog.dart';
 import '../utils/responsive_helper.dart';
 import '../theme/app_theme.dart';
@@ -63,6 +62,7 @@ class _ResponsiveRosterPageState extends State<ResponsiveRosterPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true, // Allow proper keyboard handling
       appBar: _buildAppBar(),
       body: isLoading ? _buildLoadingView() : _buildBody(),
       floatingActionButton: _buildFloatingActionButton(),
@@ -180,30 +180,20 @@ class _ResponsiveRosterPageState extends State<ResponsiveRosterPage> {
   }
 
   Widget _buildBody() {
-    final isMobile = ResponsiveHelper.isMobile(context);
-    
-    if (isMobile) {
-      // Use responsive table wrapper for mobile
-      return SafeArea(
-        child: ResponsiveRosterTable(
-          rosterTable: _buildOriginalTable(),
-          employees: employees,
-          weekDates: weekDates,
-          onShiftTap: _handleShiftTap,
-          onEmployeeDelete: _deleteEmployee,
+    // Show the roster table with horizontal and vertical scrolling on all devices
+    return SafeArea(
+      child: SingleChildScrollView(
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: MediaQuery.of(context).size.width,
+            ),
+            child: _buildOriginalTable(),
+          ),
         ),
-      );
-    } else {
-      // Use original table for desktop/tablet
-      return SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildWeekHeader(),
-            _buildOriginalTable(),
-          ],
-        ),
-      );
-    }
+      ),
+    );
   }
 
   Widget _buildWeekHeader() {
