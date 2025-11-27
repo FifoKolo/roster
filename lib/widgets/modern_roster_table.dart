@@ -7,6 +7,7 @@ import '../services/roster_storage.dart';
 import '../screens/roster_page.dart';
 import '../widgets/employee_profile_dialog.dart';
 import '../theme/app_theme.dart';
+import '../utils/responsive_helper.dart';
 
 class ModernRosterTable extends StatefulWidget {
   final List<Employee> employees;
@@ -335,21 +336,41 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    
     return Container(
       decoration: BoxDecoration(
         color: _lightGray,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(isMobile ? 8 : 12),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildHeader(),
-          _buildWeekNavigation(),
-          _buildHelpfulTips(),
-          _buildDayHeaders(),
-          _buildRosterContent(),
-        ],
-      ),
+      child: isMobile 
+        ? SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: screenWidth * 1.2, // Allow horizontal scrolling on mobile
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildHeader(),
+                  _buildWeekNavigation(),
+                  _buildHelpfulTips(),
+                  _buildDayHeaders(),
+                  _buildRosterContent(),
+                ],
+              ),
+            ),
+          )
+        : Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildHeader(),
+              _buildWeekNavigation(),
+              _buildHelpfulTips(),
+              _buildDayHeaders(),
+              _buildRosterContent(),
+            ],
+          ),
     );
   }
 
@@ -978,17 +999,21 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         },
         builder: (context, candidateData, rejectedData) {
           final isHovering = candidateData.isNotEmpty;
+          final isMobile = ResponsiveHelper.isMobile(context);
 
           return GestureDetector(
             onTap: () => _addShiftToCell(employee, day),
             child: Container(
-              padding: const EdgeInsets.all(16),
-              margin: const EdgeInsets.all(4),
+              padding: EdgeInsets.all(isMobile ? 12 : 16),
+              margin: EdgeInsets.all(isMobile ? 2 : 4),
+              constraints: isMobile 
+                ? const BoxConstraints(minHeight: 60, minWidth: 80)
+                : const BoxConstraints(minHeight: 80),
               decoration: BoxDecoration(
                 color: isHovering
                     ? _primaryBlue.withOpacity(0.1)
                     : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(isMobile ? 6 : 8),
                 border: Border.all(
                   color: isHovering
                       ? _primaryBlue
@@ -1067,15 +1092,19 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       return const SizedBox(height: 40);
     }
 
+    // Get context-aware font sizes for mobile
+    final baseFontSize = ResponsiveHelper.isMobile(context) ? 10.0 : 12.0;
+    final roleFontSize = ResponsiveHelper.isMobile(context) ? 8.0 : 10.0;
+
     if (shift.isHoliday) {
       return Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Expanded(
+          Expanded(
             child: Text(
               'Holiday',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: baseFontSize,
                 fontWeight: FontWeight.w500,
                 color: _darkGray,
               ),
@@ -1083,7 +1112,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           ),
           Icon(
             Icons.drag_indicator,
-            size: 14,
+            size: ResponsiveHelper.isMobile(context) ? 12 : 14,
             color: _darkGray.withOpacity(0.6),
           ),
         ],
@@ -1100,7 +1129,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                 Text(
                   '${_formatTime(shift.startTime!)} - ${_formatTime(shift.endTime!)}',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: baseFontSize,
                     fontWeight: FontWeight.w500,
                     color: Colors.brown[700],
                   ),
@@ -1110,9 +1139,11 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                   Text(
                     shift.role!,
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: roleFontSize,
                       color: Colors.brown[600],
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ],
@@ -1121,7 +1152,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           const SizedBox(width: 4),
           Icon(
             Icons.drag_indicator,
-            size: 14,
+            size: ResponsiveHelper.isMobile(context) ? 12 : 14,
             color: Colors.brown[600]?.withOpacity(0.6),
           ),
         ],
@@ -1130,11 +1161,11 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       return Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Expanded(
+          Expanded(
             child: Text(
               'Day Off',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: baseFontSize,
                 fontWeight: FontWeight.w500,
                 color: _darkGray,
               ),
@@ -1142,7 +1173,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           ),
           Icon(
             Icons.drag_indicator,
-            size: 14,
+            size: ResponsiveHelper.isMobile(context) ? 12 : 14,
             color: _darkGray.withOpacity(0.6),
           ),
         ],

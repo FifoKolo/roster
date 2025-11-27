@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 /// Responsive design utilities for mobile and tablet optimization
 class ResponsiveHelper {
   /// Screen size breakpoints
-  static const double mobileBreakpoint = 600;
-  static const double tabletBreakpoint = 900;
-  static const double desktopBreakpoint = 1200;
+  static const double mobileBreakpoint = 768;  // Increased for better mobile coverage
+  static const double tabletBreakpoint = 1024;
+  static const double desktopBreakpoint = 1440;
   
   /// Get current device type
   static DeviceType getDeviceType(BuildContext context) {
@@ -52,14 +52,14 @@ class ResponsiveHelper {
     switch (deviceType) {
       case DeviceType.mobile:
         return isLandscape 
-          ? const EdgeInsets.symmetric(horizontal: 8, vertical: 4)
-          : const EdgeInsets.all(8);
+          ? const EdgeInsets.symmetric(horizontal: 6, vertical: 3)
+          : const EdgeInsets.symmetric(horizontal: 12, vertical: 8);
       case DeviceType.tablet:
         return isLandscape 
           ? const EdgeInsets.symmetric(horizontal: 16, vertical: 8)
-          : const EdgeInsets.all(12);
+          : const EdgeInsets.all(16);
       case DeviceType.desktop:
-        return const EdgeInsets.all(16);
+        return const EdgeInsets.all(20);
     }
   }
   
@@ -81,16 +81,25 @@ class ResponsiveHelper {
   static double getResponsiveFontSize(BuildContext context, double baseFontSize) {
     final deviceType = getDeviceType(context);
     final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    final screenWidth = MediaQuery.of(context).size.width;
+    
+    // Scale based on screen width for better mobile readability
+    double scaleFactor = 1.0;
+    if (screenWidth < 375) {
+      scaleFactor = 0.85; // Small phones
+    } else if (screenWidth < 414) {
+      scaleFactor = 0.9; // Medium phones
+    }
     
     switch (deviceType) {
       case DeviceType.mobile:
         return isLandscape 
-          ? baseFontSize * 0.8  // Smaller in landscape to fit more content
-          : baseFontSize * 0.9; // Slightly smaller in portrait
+          ? baseFontSize * 0.75 * scaleFactor  // Smaller in landscape to fit more content
+          : baseFontSize * 0.85 * scaleFactor; // Readable size in portrait
       case DeviceType.tablet:
-        return baseFontSize;
+        return baseFontSize * 0.95;
       case DeviceType.desktop:
-        return baseFontSize * 1.1;
+        return baseFontSize * 1.05;
     }
   }
   
