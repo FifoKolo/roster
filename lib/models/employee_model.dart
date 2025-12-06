@@ -23,6 +23,7 @@ class Shift {
   final Color? customColor; // <- optional custom cell color
   final double? customHolidayHours; // NEW: custom hours deducted for this holiday
   final bool? enablePaidBreak; // NEW: per-shift toggle for paid break (null = use global setting)
+  final double? customBreakMinutes; // NEW: custom break time in minutes (overrides automatic calculation)
 
   Shift({
     this.startTime,
@@ -33,6 +34,7 @@ class Shift {
     this.customColor, // <- new
     this.customHolidayHours, // NEW: defaults to null (uses 8 hours)
     this.enablePaidBreak, // NEW: null means use global setting
+    this.customBreakMinutes, // NEW: custom break time
   });
 
   double get duration {
@@ -64,6 +66,7 @@ class Shift {
         'color': customColor?.toARGB32(), // ARGB int
         'customHolidayHours': customHolidayHours, // NEW
         'enablePaidBreak': enablePaidBreak, // NEW
+        'customBreakMinutes': customBreakMinutes, // NEW
       };
 
   static Shift fromJson(Map<String, dynamic> json) => Shift(
@@ -75,6 +78,7 @@ class Shift {
         customColor: (json['color'] is int) ? Color(json['color'] as int) : null,
         customHolidayHours: json['customHolidayHours'] as double?, // NEW
         enablePaidBreak: json['enablePaidBreak'] as bool?, // NEW
+        customBreakMinutes: (json['customBreakMinutes'] as num?)?.toDouble(), // NEW
       );
 
   // Helper method to copy shift with new paid break setting
@@ -87,6 +91,7 @@ class Shift {
     Color? customColor,
     double? customHolidayHours,
     bool? enablePaidBreak,
+    double? customBreakMinutes,
   }) {
     return Shift(
       startTime: startTime ?? this.startTime,
@@ -97,6 +102,7 @@ class Shift {
       customColor: customColor ?? this.customColor,
       customHolidayHours: customHolidayHours ?? this.customHolidayHours,
       enablePaidBreak: enablePaidBreak ?? this.enablePaidBreak,
+      customBreakMinutes: customBreakMinutes ?? this.customBreakMinutes,
     );
   }
 }
@@ -143,6 +149,12 @@ class Employee {
     // Calculate breaks for EACH individual shift
     for (final shift in shifts.values) {
       if (shift.isHoliday) continue; // No breaks for holiday shifts
+      
+      // If custom break is set for this shift, use it instead of automatic
+      if (shift.customBreakMinutes != null) {
+        totalBreaks += shift.customBreakMinutes! / 60.0;
+        continue;
+      }
       
       final shiftHours = shift.duration;
       bool shouldCalculateBreak = false;

@@ -116,6 +116,12 @@ class SalaryService {
         final shift = entry.value;
         if (shift.isHoliday || shift.duration <= 0) continue;
         
+        // If custom break is set for this shift, use it
+        if (shift.customBreakMinutes != null) {
+          totalPaidBreakHours += shift.customBreakMinutes! / 60.0;
+          continue;
+        }
+        
         bool shouldCalculateBreak = false;
         
         // Determine if break should be calculated based on behavior

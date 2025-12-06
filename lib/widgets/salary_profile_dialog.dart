@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/salary_model.dart';
 import '../services/salary_service.dart';
+import '../utils/responsive_helper.dart';
 
 class SalaryProfileDialog extends StatefulWidget {
   final String employeeId;
@@ -100,206 +101,279 @@ class _SalaryProfileDialogState extends State<SalaryProfileDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isMobile = ResponsiveHelper.isMobile(context);
+    
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      insetPadding: EdgeInsets.all(isMobile ? 12 : 40),
       child: Container(
-        width: 500,
-        padding: const EdgeInsets.all(24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.green.shade100,
-                      borderRadius: BorderRadius.circular(8),
+        width: isMobile ? screenWidth * 0.95 : 500,
+        constraints: BoxConstraints(
+          maxHeight: isMobile ? screenHeight * 0.9 : double.infinity,
+        ),
+        padding: EdgeInsets.all(isMobile ? 16 : 24),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(isMobile ? 6 : 8),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.attach_money, 
+                        color: Colors.green.shade700,
+                        size: isMobile ? 20 : 24,
+                      ),
                     ),
-                    child: Icon(Icons.attach_money, color: Colors.green.shade700),
+                    SizedBox(width: isMobile ? 10 : 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Salary Profile',
+                            style: TextStyle(
+                              fontSize: isMobile ? 18 : 22,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            widget.employeeName,
+                            style: TextStyle(
+                              fontSize: isMobile ? 13 : 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: Icon(Icons.close, size: isMobile ? 22 : 24),
+                      padding: EdgeInsets.all(isMobile ? 8 : 12),
+                    ),
+                  ],
+                ),
+                
+                SizedBox(height: isMobile ? 16 : 24),                // Base Salary
+                TextFormField(
+                  controller: _baseSalaryController,
+                  decoration: InputDecoration(
+                    labelText: 'Base Salary per Hour (€)',
+                    labelStyle: TextStyle(fontSize: isMobile ? 14 : 16),
+                    prefixIcon: Icon(Icons.euro, size: isMobile ? 20 : 24),
+                    border: const OutlineInputBorder(),
+                    helperText: 'Base hourly rate before bonuses',
+                    helperStyle: TextStyle(fontSize: isMobile ? 11 : 12),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 12 : 16,
+                      vertical: isMobile ? 14 : 16,
+                    ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Salary Profile',
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
+                  style: TextStyle(fontSize: isMobile ? 15 : 16),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                  ],
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter base salary';
+                    }
+                    final salary = double.tryParse(value);
+                    if (salary == null || salary <= 0) {
+                      return 'Please enter a valid salary amount';
+                    }
+                    return null;
+                  },
+                ),
+
+                SizedBox(height: isMobile ? 16 : 20),
+
+                // Use Global Defaults Toggle
+                Row(
+                  children: [
+                    Transform.scale(
+                      scale: isMobile ? 0.9 : 1.0,
+                      child: Checkbox(
+                        value: _useGlobalDefaults,
+                        onChanged: _toggleGlobalDefaults,
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        'Use global bonus defaults',
+                        style: TextStyle(fontSize: isMobile ? 14 : 16),
+                      ),
+                    ),
+                    if (_globalSettings != null)
+                      TextButton.icon(
+                        onPressed: () => _showGlobalSettingsInfo(context),
+                        icon: Icon(Icons.info_outline, size: isMobile ? 14 : 16),
+                        label: Text(
+                          'View defaults',
+                          style: TextStyle(fontSize: isMobile ? 13 : 14),
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isMobile ? 8 : 12,
+                            vertical: isMobile ? 6 : 8,
                           ),
                         ),
-                        Text(
-                          widget.employeeName,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey[600],
-                          ),
+                      ),
+                  ],
+                ),
+
+                SizedBox(height: isMobile ? 12 : 16),
+
+                // Bonus Percentages
+                Text(
+                  'Bonus Percentages',
+                  style: TextStyle(
+                    fontSize: isMobile ? 16 : 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: isMobile ? 10 : 12),
+
+                // Sunday Bonus
+                TextFormField(
+                  controller: _sundayBonusController,
+                  enabled: !_useGlobalDefaults,
+                  decoration: InputDecoration(
+                    labelText: 'Sunday Bonus (%)',
+                    labelStyle: TextStyle(fontSize: isMobile ? 14 : 16),
+                    prefixIcon: Icon(Icons.weekend, size: isMobile ? 20 : 24),
+                    border: const OutlineInputBorder(),
+                    suffixText: '%',
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 12 : 16,
+                      vertical: isMobile ? 14 : 16,
+                    ),
+                  ),
+                  style: TextStyle(fontSize: isMobile ? 15 : 16),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                  ],
+                  validator: (value) {
+                    if (value == null || value.isEmpty) return 'Required';
+                    final bonus = double.tryParse(value);
+                    if (bonus == null || bonus < 0) return 'Invalid percentage';
+                    return null;
+                  },
+                ),
+
+                SizedBox(height: isMobile ? 14 : 12),
+
+                // Bank Holiday Bonus
+                TextFormField(
+                  controller: _bankHolidayBonusController,
+                  enabled: !_useGlobalDefaults,
+                  decoration: InputDecoration(
+                    labelText: 'Bank Holiday Bonus (%)',
+                    labelStyle: TextStyle(fontSize: isMobile ? 14 : 16),
+                    prefixIcon: Icon(Icons.event, size: isMobile ? 20 : 24),
+                    border: const OutlineInputBorder(),
+                    suffixText: '%',
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 12 : 16,
+                      vertical: isMobile ? 14 : 16,
+                    ),
+                  ),
+                  style: TextStyle(fontSize: isMobile ? 15 : 16),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                  ],
+                  validator: (value) {
+                    if (value == null || value.isEmpty) return 'Required';
+                    final bonus = double.tryParse(value);
+                    if (bonus == null || bonus < 0) return 'Invalid percentage';
+                    return null;
+                  },
+                ),
+
+                SizedBox(height: isMobile ? 14 : 12),
+
+                // Christmas Bonus
+                TextFormField(
+                  controller: _christmasBonusController,
+                  enabled: !_useGlobalDefaults,
+                  decoration: InputDecoration(
+                    labelText: 'Christmas Day Bonus (%)',
+                    labelStyle: TextStyle(fontSize: isMobile ? 14 : 16),
+                    prefixIcon: Icon(Icons.celebration, size: isMobile ? 20 : 24),
+                    border: const OutlineInputBorder(),
+                    suffixText: '%',
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 12 : 16,
+                      vertical: isMobile ? 14 : 16,
+                    ),
+                  ),
+                  style: TextStyle(fontSize: isMobile ? 15 : 16),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                  ],
+                  validator: (value) {
+                    if (value == null || value.isEmpty) return 'Required';
+                    final bonus = double.tryParse(value);
+                    if (bonus == null || bonus < 0) return 'Invalid percentage';
+                    return null;
+                  },
+                ),
+
+                SizedBox(height: isMobile ? 18 : 24),
+
+                // Action Buttons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isMobile ? 16 : 20,
+                          vertical: isMobile ? 10 : 12,
                         ),
-                      ],
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(fontSize: isMobile ? 14 : 15),
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 24),
-              
-              // Base Salary
-              TextFormField(
-                controller: _baseSalaryController,
-                decoration: const InputDecoration(
-                  labelText: 'Base Salary per Hour (€)',
-                  prefixIcon: Icon(Icons.euro),
-                  border: OutlineInputBorder(),
-                  helperText: 'Base hourly rate before bonuses',
-                ),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
-                ],
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter base salary';
-                  }
-                  final salary = double.tryParse(value);
-                  if (salary == null || salary <= 0) {
-                    return 'Please enter a valid salary amount';
-                  }
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 20),
-
-              // Use Global Defaults Toggle
-              Row(
-                children: [
-                  Checkbox(
-                    value: _useGlobalDefaults,
-                    onChanged: _toggleGlobalDefaults,
-                  ),
-                  const Text('Use global bonus defaults'),
-                  const Spacer(),
-                  if (_globalSettings != null)
-                    TextButton.icon(
-                      onPressed: () => _showGlobalSettingsInfo(context),
-                      icon: const Icon(Icons.info_outline, size: 16),
-                      label: const Text('View defaults'),
+                    SizedBox(width: isMobile ? 8 : 12),
+                    ElevatedButton.icon(
+                      onPressed: _saveSalaryProfile,
+                      icon: Icon(Icons.save, size: isMobile ? 18 : 20),
+                      label: Text(
+                        'Save Profile',
+                        style: TextStyle(fontSize: isMobile ? 14 : 15),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isMobile ? 16 : 20,
+                          vertical: isMobile ? 10 : 12,
+                        ),
+                      ),
                     ),
-                ],
-              ),
-
-              const SizedBox(height: 16),
-
-              // Bonus Percentages
-              Text(
-                'Bonus Percentages',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
+                  ],
                 ),
-              ),
-              const SizedBox(height: 12),
-
-              // Sunday Bonus
-              TextFormField(
-                controller: _sundayBonusController,
-                enabled: !_useGlobalDefaults,
-                decoration: const InputDecoration(
-                  labelText: 'Sunday Bonus (%)',
-                  prefixIcon: Icon(Icons.weekend),
-                  border: OutlineInputBorder(),
-                  suffixText: '%',
-                ),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
-                ],
-                validator: (value) {
-                  if (value == null || value.isEmpty) return 'Required';
-                  final bonus = double.tryParse(value);
-                  if (bonus == null || bonus < 0) return 'Invalid percentage';
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 12),
-
-              // Bank Holiday Bonus
-              TextFormField(
-                controller: _bankHolidayBonusController,
-                enabled: !_useGlobalDefaults,
-                decoration: const InputDecoration(
-                  labelText: 'Bank Holiday Bonus (%)',
-                  prefixIcon: Icon(Icons.event),
-                  border: OutlineInputBorder(),
-                  suffixText: '%',
-                ),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
-                ],
-                validator: (value) {
-                  if (value == null || value.isEmpty) return 'Required';
-                  final bonus = double.tryParse(value);
-                  if (bonus == null || bonus < 0) return 'Invalid percentage';
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 12),
-
-              // Christmas Bonus
-              TextFormField(
-                controller: _christmasBonusController,
-                enabled: !_useGlobalDefaults,
-                decoration: const InputDecoration(
-                  labelText: 'Christmas Day Bonus (%)',
-                  prefixIcon: Icon(Icons.celebration),
-                  border: OutlineInputBorder(),
-                  suffixText: '%',
-                ),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
-                ],
-                validator: (value) {
-                  if (value == null || value.isEmpty) return 'Required';
-                  final bonus = double.tryParse(value);
-                  if (bonus == null || bonus < 0) return 'Invalid percentage';
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 24),
-
-              // Action Buttons
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Cancel'),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton.icon(
-                    onPressed: _saveSalaryProfile,
-                    icon: const Icon(Icons.save),
-                    label: const Text('Save Profile'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

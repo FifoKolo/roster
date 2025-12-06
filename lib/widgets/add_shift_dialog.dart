@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/employee_model.dart';
+import '../utils/responsive_helper.dart';
 
 class AddShiftDialog extends StatefulWidget {
   final Shift? shift;
@@ -19,6 +20,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
   late TextEditingController startTimeController;
   late TextEditingController endTimeController;
   late TextEditingController holidayHoursController;
+  late TextEditingController customBreakController; // NEW: custom break time in minutes
   late FocusNode startTimeFocus;
   late FocusNode endTimeFocus;
   Color? selectedColor;
@@ -167,6 +169,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
     startTimeController = TextEditingController(text: _formatTimeForDisplay(startTime));
     endTimeController = TextEditingController(text: _formatTimeForDisplay(endTime));
     holidayHoursController = TextEditingController(text: widget.shift?.customHolidayHours?.toString() ?? '8.0');
+    customBreakController = TextEditingController(text: widget.shift?.customBreakMinutes?.toString() ?? ''); // NEW
     
     // Initialize focus nodes
     startTimeFocus = FocusNode();
@@ -183,6 +186,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
     startTimeController.dispose();
     endTimeController.dispose();
     holidayHoursController.dispose();
+    customBreakController.dispose(); // NEW
     startTimeFocus.dispose();
     endTimeFocus.dispose();
     super.dispose();
@@ -195,12 +199,21 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
             endTime != null &&
             _isStartBeforeEnd(startTime!, endTime!));
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final dialogWidth = isMobile ? screenWidth * 0.95 : 450.0;
+    final maxDialogHeight = screenHeight * 0.85;
+
     return AlertDialog(
       backgroundColor: Colors.white,
       elevation: 8,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      insetPadding: isMobile 
+          ? const EdgeInsets.symmetric(horizontal: 8, vertical: 24)
+          : const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(isMobile ? 16 : 12)),
       title: Container(
-        padding: const EdgeInsets.only(bottom: 8),
+        padding: EdgeInsets.only(bottom: isMobile ? 12 : 8),
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(color: Colors.grey.shade200, width: 1),
@@ -208,68 +221,79 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
         ),
         child: Row(
           children: [
-            Icon(Icons.access_time, color: Colors.blue.shade600),
-            const SizedBox(width: 8),
-            const Text(
+            Icon(
+              Icons.access_time, 
+              color: Colors.blue.shade600,
+              size: isMobile ? 20 : 24,
+            ),
+            SizedBox(width: isMobile ? 8 : 12),
+            Text(
               'Add/Edit Shift',
               style: TextStyle(
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF1A1A1A),
+                fontSize: isMobile ? 16 : 18,
+                color: const Color(0xFF1A1A1A),
               ),
             ),
           ],
         ),
       ),
       content: Container(
-        width: 400,
-        constraints: const BoxConstraints(maxHeight: 600), // Add height constraint
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        width: dialogWidth,
+        constraints: BoxConstraints(maxHeight: maxDialogHeight),
+        padding: EdgeInsets.symmetric(vertical: isMobile ? 8 : 16),
         decoration: const BoxDecoration(
           color: Colors.white,
         ),
-        child: SingleChildScrollView( // Make content scrollable
+        child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
           // Holiday toggle with clean styling
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 8 : 4, 
+              vertical: isMobile ? 12 : 8,
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   'Holiday',
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: isMobile ? 15 : 16,
                     fontWeight: FontWeight.w500,
                     color: Colors.grey.shade800,
                   ),
                 ),
-                Switch(
-                  value: isHoliday,
-                  onChanged: (value) => setState(() => isHoliday = value),
-                  activeThumbColor: Colors.blue.shade600,
+                Transform.scale(
+                  scale: isMobile ? 0.9 : 1.0,
+                  child: Switch(
+                    value: isHoliday,
+                    onChanged: (value) => setState(() => isHoliday = value),
+                    activeThumbColor: Colors.blue.shade600,
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: isMobile ? 12 : 16),
           if (isHoliday) ...[
             // Holiday hours input field
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
+              padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 4),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Holiday Hours',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: isMobile ? 13 : 14,
                       fontWeight: FontWeight.w500,
                       color: Colors.grey.shade700,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: isMobile ? 10 : 8),
                   TextField(
                     controller: holidayHoursController,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -288,39 +312,42 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                         borderRadius: BorderRadius.circular(8),
                         borderSide: BorderSide(color: Colors.blue.shade600),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: isMobile ? 14 : 12, 
+                        vertical: isMobile ? 16 : 14,
+                      ),
                     ),
-                    style: const TextStyle(fontSize: 14),
+                    style: TextStyle(fontSize: isMobile ? 15 : 14),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: isMobile ? 6 : 4),
                   Text(
                     'Hours to deduct from accumulated holiday hours',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: isMobile ? 11 : 12,
                       color: Colors.grey.shade500,
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: isMobile ? 20 : 16),
           ],
           if (!isHoliday) ...[
             // Role field with clean styling
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
+              padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 4),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Role (Optional)',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: isMobile ? 13 : 14,
                       fontWeight: FontWeight.w500,
                       color: Colors.grey.shade700,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: isMobile ? 10 : 8),
                   TextField(
                     controller: roleController,
                     decoration: InputDecoration(
@@ -335,17 +362,21 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                       ),
                       filled: true,
                       fillColor: Colors.white,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: isMobile ? 14 : 12,
+                        vertical: isMobile ? 16 : 16,
+                      ),
                     ),
                     textInputAction: TextInputAction.next,
+                    style: TextStyle(fontSize: isMobile ? 15 : 14),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: isMobile ? 16 : 20),
             // Time selection with enhanced input options
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.all(isMobile ? 16 : 20),
               decoration: BoxDecoration(
                 color: Colors.grey.shade50,
                 borderRadius: BorderRadius.circular(12),
@@ -359,12 +390,12 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.access_time, color: Colors.grey.shade700, size: 20),
-                          const SizedBox(width: 8),
+                          Icon(Icons.access_time, color: Colors.grey.shade700, size: isMobile ? 18 : 20),
+                          SizedBox(width: isMobile ? 6 : 8),
                           Text(
                             'Shift Times',
                             style: TextStyle(
-                              fontSize: 16,
+                              fontSize: isMobile ? 14 : 16,
                               fontWeight: FontWeight.w600,
                               color: Colors.grey.shade800,
                             ),
@@ -373,7 +404,10 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                       ),
                       // Format toggle
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isMobile ? 6 : 8,
+                          vertical: isMobile ? 3 : 4,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(20),
@@ -391,7 +425,10 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                                 });
                               },
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: isMobile ? 10 : 12,
+                                  vertical: isMobile ? 5 : 6,
+                                ),
                                 decoration: BoxDecoration(
                                   color: use24HourFormat ? Colors.blue.shade600 : Colors.transparent,
                                   borderRadius: BorderRadius.circular(16),
@@ -399,14 +436,14 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                                 child: Text(
                                   '24h',
                                   style: TextStyle(
-                                    fontSize: 12,
+                                    fontSize: isMobile ? 11 : 12,
                                     fontWeight: FontWeight.w600,
                                     color: use24HourFormat ? Colors.white : Colors.grey.shade600,
                                   ),
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 4),
+                            SizedBox(width: isMobile ? 3 : 4),
                             GestureDetector(
                               onTap: () {
                                 setState(() {
@@ -416,7 +453,10 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                                 });
                               },
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: isMobile ? 10 : 12,
+                                  vertical: isMobile ? 5 : 6,
+                                ),
                                 decoration: BoxDecoration(
                                   color: !use24HourFormat ? Colors.blue.shade600 : Colors.transparent,
                                   borderRadius: BorderRadius.circular(16),
@@ -424,7 +464,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                                 child: Text(
                                   'AM/PM',
                                   style: TextStyle(
-                                    fontSize: 12,
+                                    fontSize: isMobile ? 11 : 12,
                                     fontWeight: FontWeight.w600,
                                     color: !use24HourFormat ? Colors.white : Colors.grey.shade600,
                                   ),
@@ -436,7 +476,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: isMobile ? 12 : 16),
                   Row(
                     children: [
                       Expanded(
@@ -446,12 +486,12 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                             Text(
                               'Start Time',
                               style: TextStyle(
-                                fontSize: 14,
+                                fontSize: isMobile ? 13 : 14,
                                 fontWeight: FontWeight.w500,
                                 color: Colors.grey.shade700,
                               ),
                             ),
-                            const SizedBox(height: 8),
+                            SizedBox(height: isMobile ? 6 : 8),
                             TextField(
                               controller: startTimeController,
                               focusNode: startTimeFocus,
@@ -468,7 +508,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                                   borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
                                 ),
                                 suffixIcon: IconButton(
-                                  icon: Icon(Icons.access_time, color: Colors.grey.shade600),
+                                  icon: Icon(Icons.access_time, color: Colors.grey.shade600, size: isMobile ? 20 : 24),
                                   onPressed: () async {
                                     final time = await showTimePicker(
                                       context: context,
@@ -482,8 +522,12 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                                     }
                                   },
                                 ),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: isMobile ? 12 : 12,
+                                  vertical: isMobile ? 14 : 16,
+                                ),
                               ),
+                              style: TextStyle(fontSize: isMobile ? 15 : 14),
                               onChanged: (value) {
                                 _updateTimeFromInput(value, true);
                               },
@@ -491,7 +535,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                           ],
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      SizedBox(width: isMobile ? 12 : 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -499,12 +543,12 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                             Text(
                               'End Time',
                               style: TextStyle(
-                                fontSize: 14,
+                                fontSize: isMobile ? 13 : 14,
                                 fontWeight: FontWeight.w500,
                                 color: Colors.grey.shade700,
                               ),
                             ),
-                            const SizedBox(height: 8),
+                            SizedBox(height: isMobile ? 6 : 8),
                             TextField(
                               controller: endTimeController,
                               focusNode: endTimeFocus,
@@ -521,7 +565,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                                   borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
                                 ),
                                 suffixIcon: IconButton(
-                                  icon: Icon(Icons.access_time, color: Colors.grey.shade600),
+                                  icon: Icon(Icons.access_time, color: Colors.grey.shade600, size: isMobile ? 20 : 24),
                                   onPressed: () async {
                                     final time = await showTimePicker(
                                       context: context,
@@ -535,8 +579,12 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                                     }
                                   },
                                 ),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: isMobile ? 12 : 12,
+                                  vertical: isMobile ? 14 : 16,
+                                ),
                               ),
+                              style: TextStyle(fontSize: isMobile ? 15 : 14),
                               onChanged: (value) {
                                 _updateTimeFromInput(value, false);
                               },
@@ -546,10 +594,10 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: isMobile ? 10 : 12),
                   // Format examples
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: EdgeInsets.all(isMobile ? 6 : 8),
                     decoration: BoxDecoration(
                       color: Colors.blue.shade50,
                       borderRadius: BorderRadius.circular(6),
@@ -557,15 +605,15 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
-                        const SizedBox(width: 6),
+                        Icon(Icons.info_outline, size: isMobile ? 12 : 14, color: Colors.blue.shade700),
+                        SizedBox(width: isMobile ? 4 : 6),
                         Expanded(
                           child: Text(
                             use24HourFormat 
                                 ? 'Format: 24-hour (e.g., 09:00, 14:30, 23:45)'
                                 : 'Format: 12-hour (e.g., 9:00 AM, 2:30 PM, 11:45 PM)',
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: isMobile ? 10 : 11,
                               color: Colors.blue.shade700,
                             ),
                           ),
@@ -574,9 +622,9 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                     ),
                   ),
                   if (startTime != null && endTime != null) ...[
-                    const SizedBox(height: 16),
+                    SizedBox(height: isMobile ? 12 : 16),
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: EdgeInsets.all(isMobile ? 10 : 12),
                       decoration: BoxDecoration(
                         color: Colors.green.shade50,
                         borderRadius: BorderRadius.circular(8),
@@ -584,12 +632,12 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.schedule, size: 16, color: Colors.green.shade700),
-                          const SizedBox(width: 8),
+                          Icon(Icons.schedule, size: isMobile ? 14 : 16, color: Colors.green.shade700),
+                          SizedBox(width: isMobile ? 6 : 8),
                           Text(
                             'Duration: ${_calculateDuration(startTime!, endTime!)} hours',
                             style: TextStyle(
-                              fontSize: 14,
+                              fontSize: isMobile ? 13 : 14,
                               fontWeight: FontWeight.w500,
                               color: Colors.green.shade700,
                             ),
@@ -601,22 +649,22 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                 ],
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: isMobile ? 6 : 8),
             // Comment field with clean styling
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
+              padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 4),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Comment (Optional)',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: isMobile ? 13 : 14,
                       fontWeight: FontWeight.w500,
                       color: Colors.grey.shade700,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: isMobile ? 6 : 8),
                   TextField(
                     controller: commentController,
                     decoration: InputDecoration(
@@ -631,33 +679,89 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                       ),
                       filled: true,
                       fillColor: Colors.white,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: isMobile ? 12 : 12,
+                        vertical: isMobile ? 14 : 16,
+                      ),
                     ),
+                    style: TextStyle(fontSize: isMobile ? 14 : 14),
                     maxLines: 2,
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: isMobile ? 12 : 16),
+            
+            // Custom Break Time - only show for non-holiday shifts
+            if (!isHoliday)
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Custom Break Time (Optional)',
+                      style: TextStyle(
+                        fontSize: isMobile ? 13 : 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                    SizedBox(height: isMobile ? 6 : 8),
+                    TextField(
+                      controller: customBreakController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        hintText: 'e.g., 30 for 30 minutes',
+                        suffixText: 'min',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: isMobile ? 12 : 12,
+                          vertical: isMobile ? 14 : 16,
+                        ),
+                      ),
+                      style: TextStyle(fontSize: isMobile ? 15 : 14),
+                    ),
+                    SizedBox(height: isMobile ? 4 : 6),
+                    Text(
+                      'Leave empty to use automatic break calculation',
+                      style: TextStyle(
+                        fontSize: isMobile ? 11 : 12,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            SizedBox(height: isMobile ? 12 : 16),
             
             // Paid Break Toggle - only show for non-holiday shifts
             if (!isHoliday)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
+                padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 4),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Paid Break Setting',
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: isMobile ? 13 : 14,
                         fontWeight: FontWeight.w500,
                         color: Colors.grey.shade700,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: isMobile ? 6 : 8),
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: EdgeInsets.all(isMobile ? 10 : 12),
                       decoration: BoxDecoration(
                         color: Colors.indigo.shade50,
                         borderRadius: BorderRadius.circular(8),
@@ -667,31 +771,34 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.info_outline, size: 16, color: Colors.indigo.shade600),
-                              const SizedBox(width: 8),
+                              Icon(Icons.info_outline, size: isMobile ? 14 : 16, color: Colors.indigo.shade600),
+                              SizedBox(width: isMobile ? 6 : 8),
                               Expanded(
                                 child: Text(
                                   'Automatic: 4.5hrs = 15min • 6hrs+ = 30min',
                                   style: TextStyle(
-                                    fontSize: 12,
+                                    fontSize: isMobile ? 11 : 12,
                                     color: Colors.indigo.shade700,
                                   ),
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
+                          SizedBox(height: isMobile ? 6 : 8),
                           Row(
                             children: [
-                              Radio<bool?>(
-                                value: null,
-                                groupValue: enablePaidBreak,
-                                onChanged: (value) {
-                                  setState(() {
-                                    enablePaidBreak = value;
-                                  });
-                                },
-                                activeColor: Colors.indigo,
+                              Transform.scale(
+                                scale: isMobile ? 0.9 : 1.0,
+                                child: Radio<bool?>(
+                                  value: null,
+                                  groupValue: enablePaidBreak,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      enablePaidBreak = value;
+                                    });
+                                  },
+                                  activeColor: Colors.indigo,
+                                ),
                               ),
                               Expanded(
                                 child: GestureDetector(
@@ -703,6 +810,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                                   child: Text(
                                     'Use Global Setting',
                                     style: TextStyle(
+                                      fontSize: isMobile ? 13 : 14,
                                       color: Colors.indigo.shade700,
                                       fontWeight: FontWeight.w500,
                                     ),
@@ -713,15 +821,18 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                           ),
                           Row(
                             children: [
-                              Radio<bool?>(
-                                value: true,
-                                groupValue: enablePaidBreak,
-                                onChanged: (value) {
-                                  setState(() {
-                                    enablePaidBreak = value;
-                                  });
-                                },
-                                activeColor: Colors.green,
+                              Transform.scale(
+                                scale: isMobile ? 0.9 : 1.0,
+                                child: Radio<bool?>(
+                                  value: true,
+                                  groupValue: enablePaidBreak,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      enablePaidBreak = value;
+                                    });
+                                  },
+                                  activeColor: Colors.green,
+                                ),
                               ),
                               Expanded(
                                 child: GestureDetector(
@@ -732,13 +843,16 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                                   },
                                   child: Row(
                                     children: [
-                                      Icon(Icons.check_circle, size: 16, color: Colors.green.shade600),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'Enable Break for This Shift',
-                                        style: TextStyle(
-                                          color: Colors.green.shade700,
-                                          fontWeight: FontWeight.w500,
+                                      Icon(Icons.check_circle, size: isMobile ? 14 : 16, color: Colors.green.shade600),
+                                      SizedBox(width: isMobile ? 3 : 4),
+                                      Expanded(
+                                        child: Text(
+                                          'Enable Break for This Shift',
+                                          style: TextStyle(
+                                            fontSize: isMobile ? 13 : 14,
+                                            color: Colors.green.shade700,
+                                            fontWeight: FontWeight.w500,
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -749,15 +863,18 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                           ),
                           Row(
                             children: [
-                              Radio<bool?>(
-                                value: false,
-                                groupValue: enablePaidBreak,
-                                onChanged: (value) {
-                                  setState(() {
-                                    enablePaidBreak = value;
-                                  });
-                                },
-                                activeColor: Colors.orange,
+                              Transform.scale(
+                                scale: isMobile ? 0.9 : 1.0,
+                                child: Radio<bool?>(
+                                  value: false,
+                                  groupValue: enablePaidBreak,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      enablePaidBreak = value;
+                                    });
+                                  },
+                                  activeColor: Colors.orange,
+                                ),
                               ),
                               Expanded(
                                 child: GestureDetector(
@@ -768,13 +885,16 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                                   },
                                   child: Row(
                                     children: [
-                                      Icon(Icons.cancel, size: 16, color: Colors.orange.shade600),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'Disable Break for This Shift',
-                                        style: TextStyle(
-                                          color: Colors.orange.shade700,
-                                          fontWeight: FontWeight.w500,
+                                      Icon(Icons.cancel, size: isMobile ? 14 : 16, color: Colors.orange.shade600),
+                                      SizedBox(width: isMobile ? 3 : 4),
+                                      Expanded(
+                                        child: Text(
+                                          'Disable Break for This Shift',
+                                          style: TextStyle(
+                                            fontSize: isMobile ? 13 : 14,
+                                            color: Colors.orange.shade700,
+                                            fontWeight: FontWeight.w500,
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -789,28 +909,37 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                   ],
                 ),
               ),
-            const SizedBox(height: 20),
+            SizedBox(height: isMobile ? 16 : 20),
             
             // Color picker with clean styling
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
+              padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 4),
               child: Row(
                 children: [
                   Container(
-                    width: 32,
-                    height: 32,
+                    width: isMobile ? 28 : 32,
+                    height: isMobile ? 28 : 32,
                     decoration: BoxDecoration(
                       color: selectedColor ?? Colors.grey.shade100,
                       border: Border.all(color: Colors.grey.shade300, width: 2),
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: isMobile ? 10 : 12),
                   TextButton.icon(
-                    icon: Icon(Icons.palette, color: Colors.blue.shade600),
+                    icon: Icon(Icons.palette, color: Colors.blue.shade600, size: isMobile ? 18 : 20),
                     label: Text(
                       'Pick color',
-                      style: TextStyle(color: Colors.blue.shade600),
+                      style: TextStyle(
+                        fontSize: isMobile ? 13 : 14,
+                        color: Colors.blue.shade600,
+                      ),
+                    ),
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isMobile ? 12 : 16,
+                        vertical: isMobile ? 8 : 10,
+                      ),
                     ),
                     onPressed: () async {
                     final c = await _pickColor(context, selectedColor);
@@ -820,9 +949,18 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                 if (selectedColor != null)
                   TextButton(
                     onPressed: () => setState(() => selectedColor = null),
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isMobile ? 12 : 16,
+                        vertical: isMobile ? 8 : 10,
+                      ),
+                    ),
                     child: Text(
                       'Clear',
-                      style: TextStyle(color: Colors.grey.shade600),
+                      style: TextStyle(
+                        fontSize: isMobile ? 13 : 14,
+                        color: Colors.grey.shade600,
+                      ),
                     ),
                   ),
                 ],
@@ -834,9 +972,9 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
               endTime != null &&
               !_isStartBeforeEnd(startTime!, endTime!))
             Padding(
-              padding: const EdgeInsets.only(top: 16),
+              padding: EdgeInsets.only(top: isMobile ? 12 : 16),
               child: Container(
-                padding: const EdgeInsets.all(12),
+                padding: EdgeInsets.all(isMobile ? 10 : 12),
                 decoration: BoxDecoration(
                   color: Colors.red.shade50,
                   borderRadius: BorderRadius.circular(8),
@@ -844,14 +982,16 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.warning, color: Colors.red.shade700, size: 16),
-                    const SizedBox(width: 8),
-                    Text(
-                      'End time must be after start time.',
-                      style: TextStyle(
-                        color: Colors.red.shade700,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                    Icon(Icons.warning, color: Colors.red.shade700, size: isMobile ? 14 : 16),
+                    SizedBox(width: isMobile ? 6 : 8),
+                    Expanded(
+                      child: Text(
+                        'End time must be after start time.',
+                        style: TextStyle(
+                          color: Colors.red.shade700,
+                          fontSize: isMobile ? 13 : 14,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ],
@@ -864,24 +1004,28 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
       ), // Container closing
       actions: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          padding: EdgeInsets.symmetric(horizontal: isMobile ? 6 : 8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 16 : 20,
+                    vertical: isMobile ? 10 : 12,
+                  ),
                 ),
                 child: Text(
                   'Cancel',
                   style: TextStyle(
+                    fontSize: isMobile ? 14 : 15,
                     color: Colors.grey.shade600,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: isMobile ? 6 : 8),
               ElevatedButton(
                 onPressed: canSave
                     ? () {
@@ -900,6 +1044,9 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                                 ? (double.tryParse(holidayHoursController.text) ?? 8.0)
                                 : null,
                             enablePaidBreak: enablePaidBreak,
+                            customBreakMinutes: customBreakController.text.trim().isEmpty
+                                ? null
+                                : double.tryParse(customBreakController.text), // NEW: custom break in minutes
                           ),
                         );
                       }
@@ -907,14 +1054,20 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: canSave ? Colors.blue.shade600 : Colors.grey.shade300,
                   foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 20 : 24,
+                    vertical: isMobile ? 10 : 12,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 ),
-                child: const Text(
+                child: Text(
                   'Save',
-                  style: TextStyle(fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    fontSize: isMobile ? 14 : 15,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],

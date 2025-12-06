@@ -3,6 +3,7 @@ import '../models/employee_model.dart';
 import '../models/salary_model.dart';
 import '../services/salary_service.dart';
 import '../widgets/salary_profile_dialog.dart';
+import '../utils/responsive_helper.dart';
 
 class EmployeeProfileDialog extends StatefulWidget {
   final Employee employee;
@@ -97,12 +98,17 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isMobile = ResponsiveHelper.isMobile(context);
+    
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      insetPadding: EdgeInsets.all(isMobile ? 12 : 40),
       child: Container(
-        width: 600,
-        height: 700,
-        padding: const EdgeInsets.all(24),
+        width: isMobile ? screenWidth * 0.95 : 600,
+        height: isMobile ? screenHeight * 0.9 : 700,
+        padding: EdgeInsets.all(isMobile ? 16 : 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -110,31 +116,33 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
             Row(
               children: [
                 CircleAvatar(
-                  radius: 30,
+                  radius: isMobile ? 24 : 30,
                   backgroundColor: Colors.blue.shade100,
                   child: Text(
                     widget.employee.name.isNotEmpty ? widget.employee.name[0].toUpperCase() : '?',
                     style: TextStyle(
-                      fontSize: 24,
+                      fontSize: isMobile ? 20 : 24,
                       fontWeight: FontWeight.bold,
                       color: Colors.blue.shade700,
                     ),
                   ),
                 ),
-                const SizedBox(width: 16),
+                SizedBox(width: isMobile ? 12 : 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         widget.employee.name,
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        style: TextStyle(
+                          fontSize: isMobile ? 18 : 22,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       Text(
                         'Employee Profile',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        style: TextStyle(
+                          fontSize: isMobile ? 13 : 14,
                           color: Colors.grey[600],
                         ),
                       ),
@@ -143,12 +151,13 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
                 ),
                 IconButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close),
+                  icon: Icon(Icons.close, size: isMobile ? 22 : 24),
+                  padding: EdgeInsets.all(isMobile ? 8 : 12),
                 ),
               ],
             ),
 
-            const SizedBox(height: 24),
+            SizedBox(height: isMobile ? 16 : 24),
 
             if (_isLoading)
               const Expanded(
@@ -168,19 +177,21 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
                         child: Column(
                           children: [
                             _buildInfoRow('Name', widget.employee.name),
+                            SizedBox(height: isMobile ? 12 : 8),
                             _buildInfoRow('Total Worked Hours', '${widget.employee.totalWorkedHours.toStringAsFixed(1)} hrs'),
+                            SizedBox(height: isMobile ? 12 : 8),
                             _buildInfoRow('Total Paid Hours', '${widget.employee.totalPaidHours.toStringAsFixed(1)} hrs'),
                             Container(
-                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              padding: EdgeInsets.symmetric(vertical: isMobile ? 8 : 4),
                               child: Row(
                                 children: [
-                                  Icon(Icons.info_outline, size: 16, color: Colors.blue[600]),
-                                  const SizedBox(width: 8),
+                                  Icon(Icons.info_outline, size: isMobile ? 14 : 16, color: Colors.blue[600]),
+                                  SizedBox(width: isMobile ? 6 : 8),
                                   Expanded(
                                     child: Text(
                                       'Salary calculations use Paid Hours',
                                       style: TextStyle(
-                                        fontSize: 12,
+                                        fontSize: isMobile ? 11 : 12,
                                         color: Colors.blue[600],
                                         fontStyle: FontStyle.italic,
                                       ),
@@ -189,14 +200,15 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 8),
+                            SizedBox(height: isMobile ? 12 : 8),
                             _buildInfoRow('Holiday Hours Earned', '${widget.employee.holidayHoursEarnedThisWeek.toStringAsFixed(1)} hrs'),
+                            SizedBox(height: isMobile ? 12 : 8),
                             _buildInfoRow('Remaining Holiday Hours', '${widget.employee.remainingAccumulatedHolidayHours.toStringAsFixed(1)} hrs'),
                           ],
                         ),
                       ),
 
-                      const SizedBox(height: 16),
+                      SizedBox(height: isMobile ? 12 : 16),
 
                       // Salary Information
                       _buildSectionCard(
@@ -244,9 +256,10 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
     required Color color,
     required Widget child,
   }) {
+    final isMobile = ResponsiveHelper.isMobile(context);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(isMobile ? 12 : 16),
       decoration: BoxDecoration(
         border: Border.all(color: color.withOpacity(0.3)),
         borderRadius: BorderRadius.circular(12),
@@ -257,19 +270,19 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
         children: [
           Row(
             children: [
-              Icon(icon, color: color, size: 20),
-              const SizedBox(width: 8),
+              Icon(icon, color: color, size: isMobile ? 18 : 20),
+              SizedBox(width: isMobile ? 6 : 8),
               Text(
                 title,
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: isMobile ? 15 : 16,
                   fontWeight: FontWeight.bold,
                   color: color,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: isMobile ? 10 : 12),
           child,
         ],
       ),
@@ -277,45 +290,78 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
   }
 
   Widget _buildInfoRow(String label, String value) {
+    final isMobile = ResponsiveHelper.isMobile(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: EdgeInsets.symmetric(vertical: isMobile ? 6 : 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+          Expanded(
+            flex: 3,
+            child: Text(
+              label, 
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: isMobile ? 14 : 15,
+              ),
+            ),
+          ),
+          SizedBox(width: 8),
+          Expanded(
+            flex: 2,
+            child: Text(
+              value, 
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: isMobile ? 14 : 15,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildNoSalaryProfile() {
+    final isMobile = ResponsiveHelper.isMobile(context);
     return Column(
       children: [
-        Icon(Icons.money_off, size: 48, color: Colors.grey[400]),
-        const SizedBox(height: 12),
+        Icon(Icons.money_off, size: isMobile ? 40 : 48, color: Colors.grey[400]),
+        SizedBox(height: isMobile ? 10 : 12),
         Text(
           'No salary profile set',
           style: TextStyle(
-            fontSize: 16,
+            fontSize: isMobile ? 15 : 16,
             color: Colors.grey[600],
             fontWeight: FontWeight.w500,
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: isMobile ? 6 : 8),
         Text(
           'Create a salary profile to track earnings and bonuses',
-          style: TextStyle(color: Colors.grey[500]),
+          style: TextStyle(
+            color: Colors.grey[500],
+            fontSize: isMobile ? 13 : 14,
+          ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: isMobile ? 12 : 16),
         ElevatedButton.icon(
           onPressed: _openSalaryProfileDialog,
-          icon: const Icon(Icons.add),
-          label: const Text('Create Salary Profile'),
+          icon: Icon(Icons.add, size: isMobile ? 18 : 20),
+          label: Text(
+            'Create Salary Profile',
+            style: TextStyle(fontSize: isMobile ? 14 : 15),
+          ),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.green,
             foregroundColor: Colors.white,
+            padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 16 : 20,
+              vertical: isMobile ? 10 : 12,
+            ),
           ),
         ),
       ],
@@ -323,35 +369,48 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
   }
 
   Widget _buildSalaryInformation() {
+    final isMobile = ResponsiveHelper.isMobile(context);
     return Column(
       children: [
         _buildInfoRow('Base Salary/Hour', '€${_salaryProfile!.baseSalaryPerHour.toStringAsFixed(2)}'),
         _buildInfoRow('Sunday Bonus', '${_salaryProfile!.sundayBonusPercentage.toStringAsFixed(1)}%'),
         _buildInfoRow('Bank Holiday Bonus', '${_salaryProfile!.bankHolidayBonusPercentage.toStringAsFixed(1)}%'),
         _buildInfoRow('Christmas Bonus', '${_salaryProfile!.christmasBonusPercentage.toStringAsFixed(1)}%'),
-        const SizedBox(height: 12),
+        SizedBox(height: isMobile ? 10 : 12),
         Row(
           children: [
             Expanded(
               child: ElevatedButton.icon(
                 onPressed: _openSalaryProfileDialog,
-                icon: const Icon(Icons.edit),
-                label: const Text('Edit'),
+                icon: Icon(Icons.edit, size: isMobile ? 16 : 18),
+                label: Text(
+                  'Edit',
+                  style: TextStyle(fontSize: isMobile ? 13 : 14),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue,
                   foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(
+                    vertical: isMobile ? 10 : 12,
+                  ),
                 ),
               ),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: isMobile ? 6 : 8),
             Expanded(
               child: ElevatedButton.icon(
                 onPressed: _deleteSalaryProfile,
-                icon: const Icon(Icons.delete),
-                label: const Text('Delete'),
+                icon: Icon(Icons.delete, size: isMobile ? 16 : 18),
+                label: Text(
+                  'Delete',
+                  style: TextStyle(fontSize: isMobile ? 13 : 14),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red,
                   foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(
+                    vertical: isMobile ? 10 : 12,
+                  ),
                 ),
               ),
             ),
