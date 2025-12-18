@@ -239,12 +239,18 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   // Save week-specific roster data directly to roster storage
   Future<void> _saveToRosterStorage() async {
     try {
-      // Removed emoji print statement
       final employeeList = _getEmployeeList();
+      // Debug: verify custom values before saving
+      for (final emp in employeeList) {
+        if (emp.customAccumulatedHours != null || emp.customHolidayHours != null) {
+          print('💾 Saving employee: ${emp.name}');
+          print('   customAccumulatedHours: ${emp.customAccumulatedHours}');
+          print('   customHolidayHours: ${emp.customHolidayHours}');
+        }
+      }
       await RosterStorage.saveRoster(widget.rosterName, employeeList);
-      // Removed emoji print statement
     } catch (e) {
-      // Removed emoji print statement
+      print('❌ Error saving to roster storage: $e');
     }
   }
 
@@ -337,7 +343,6 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   @override
   Widget build(BuildContext context) {
     final isMobile = ResponsiveHelper.isMobile(context);
-    final isLandscape = ResponsiveHelper.isLandscape(context);
     final screenWidth = MediaQuery.of(context).size.width;
     
     return Container(
@@ -352,7 +357,6 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         children: [
           _buildHeader(),
           _buildWeekNavigation(),
-          if (!isMobile || isLandscape) _buildHelpfulTips(), // Hide tips on mobile portrait
           _buildDayHeaders(),
           _buildRosterContent(),
         ],
@@ -478,7 +482,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   }
 
   Widget _buildWeekSpecificNavigation() {
-    // Extract current week number from roster name
+    // Extract current week number from roster name (no year)
     final weekMatch = RegExp(r'Week (\d+)').firstMatch(widget.rosterName);
     final currentWeekNumber =
         weekMatch != null ? int.parse(weekMatch.group(1)!) : null;
@@ -509,8 +513,10 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
 
     final prevWeekNumber = currentWeekNumber - 1;
     final nextWeekNumber = currentWeekNumber + 1;
-    final prevWeekName = 'Week $prevWeekNumber';
-    final nextWeekName = 'Week $nextWeekNumber';
+
+    // Build simple prev/next names without year
+    final String prevWeekName = 'Week $prevWeekNumber';
+    final String nextWeekName = 'Week $nextWeekNumber';
 
     return Row(
       children: [
@@ -641,61 +647,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     );
   }
 
-  Widget _buildHelpfulTips() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            _primaryBlue.withOpacity(0.05),
-            Colors.indigo.withOpacity(0.05)
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _primaryBlue.withOpacity(0.2)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: _primaryBlue.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(Icons.lightbulb, color: _primaryBlue, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Quick Tips:',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: _primaryBlue,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '• Tap empty cells to add shifts  • Drag & drop shifts to move them  • Long-press shifts for options (copy, edit, delete)',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: _darkGray,
-                    height: 1.3,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // Tips removed per request
 
   Widget _buildDayHeaders() {
     final isMobile = ResponsiveHelper.isMobile(context);
@@ -1838,9 +1790,20 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       if (weekMatch != null) {
         final weekNumber = int.tryParse(weekMatch.group(1)!);
         if (weekNumber != null && weekNumber >= 1 && weekNumber <= 53) {
-          // Calculate Monday of the specified ISO week number in current year
-          final now = DateTime.now();
-          final year = now.year;
+          // Infer year based on current roster dates to handle year rollover
+          int year;
+          final employeeList = _getEmployeeList();
+          if (employeeList.isNotEmpty && employeeList.first.rosterStartDate != null) {
+            final existingDate = employeeList.first.rosterStartDate!;
+            year = existingDate.year;
+            // If creating an early week (1-10) while current roster is in late year (Nov-Dec), move to next year
+            if (weekNumber <= 10 && existingDate.month >= 11) {
+              year = existingDate.year + 1;
+              print('🔄 Year rollover detected: assigning $year for week $weekNumber');
+            }
+          } else {
+            year = DateTime.now().year;
+          }
           
           // Find January 4th of the year (which is always in week 1)
           final jan4 = DateTime(year, 1, 4);
@@ -1870,15 +1833,30 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       final newEmployees = <Employee>[];
       final employeeList = _getEmployeeList();
       for (final employee in employeeList) {
+        // Carry-forward accumulated values to next week (respect custom overrides)
+        final baseAccumWorked = employee.customAccumulatedHours ?? employee.accumulatedWorkedHours;
+        final baseHoliday = employee.customHolidayHours ?? employee.accumulatedHolidayHours;
+        final carryAccumWorked = baseAccumWorked + employee.totalWorkedHours;
+        final carryAccumTotal = employee.accumulatedTotalHours + employee.totalWorkedHours;
+        
+        // If custom holiday is set, don't add earned hours (custom is the baseline)
+        // If not custom, add earned hours and subtract used
+        final earnedHolidayThisWeek = employee.customHolidayHours != null ? 0.0 : employee.holidayHoursEarnedThisWeek;
+        final carryHoliday = (baseHoliday + earnedHolidayThisWeek - employee.totalHolidayHoursUsed).clamp(0.0, double.infinity);
+
         final newEmployee = Employee(
           name: employee.name,
           shifts: <String, Shift>{}, // Empty shifts
-          accumulatedWorkedHours: 0,
-          accumulatedTotalHours: 0,
-          accumulatedHolidayHours: 0,
+          accumulatedWorkedHours: carryAccumWorked,
+          accumulatedTotalHours: carryAccumTotal,
+          accumulatedHolidayHours: carryHoliday, // Carry remaining holiday into next week
           employeeColor: employee.employeeColor,
           rosterStartDate: mondayDate,
           rosterEndDate: sundayDate,
+          // Carry forward custom accumulated hours with this week's work added
+          customAccumulatedHours: carryAccumWorked,
+          // Clear custom holiday to allow automatic earning in future weeks
+          customHolidayHours: null,
         );
         newEmployees.add(newEmployee);
       }
@@ -1943,9 +1921,20 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       if (weekMatch != null) {
         final weekNumber = int.tryParse(weekMatch.group(1)!);
         if (weekNumber != null && weekNumber >= 1 && weekNumber <= 53) {
-          // Calculate Monday of the specified ISO week number in current year
-          final now = DateTime.now();
-          final year = now.year;
+          // Infer year based on current roster dates to handle year rollover
+          int year;
+          final employeeList = _getEmployeeList();
+          if (employeeList.isNotEmpty && employeeList.first.rosterStartDate != null) {
+            final existingDate = employeeList.first.rosterStartDate!;
+            year = existingDate.year;
+            // If creating an early week (1-10) while current roster is in late year (Nov-Dec), move to next year
+            if (weekNumber <= 10 && existingDate.month >= 11) {
+              year = existingDate.year + 1;
+              print('🔄 Year rollover detected: assigning $year for week $weekNumber');
+            }
+          } else {
+            year = DateTime.now().year;
+          }
           
           // Find January 4th of the year (which is always in week 1)
           final jan4 = DateTime(year, 1, 4);
@@ -1975,15 +1964,30 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         final employeeShifts =
             currentWeekShifts[employee.name] ?? <String, Shift>{};
 
+        // Carry-forward accumulated values to next week (respect custom overrides)
+        final baseAccumWorked = employee.customAccumulatedHours ?? employee.accumulatedWorkedHours;
+        final baseHoliday = employee.customHolidayHours ?? employee.accumulatedHolidayHours;
+        final carryAccumWorked = baseAccumWorked + employee.totalWorkedHours;
+        final carryAccumTotal = employee.accumulatedTotalHours + employee.totalWorkedHours;
+        
+        // If custom holiday is set, don't add earned hours (custom is the baseline)
+        // If not custom, add earned hours and subtract used
+        final earnedHolidayThisWeek = employee.customHolidayHours != null ? 0.0 : employee.holidayHoursEarnedThisWeek;
+        final carryHoliday = (baseHoliday + earnedHolidayThisWeek - employee.totalHolidayHoursUsed).clamp(0.0, double.infinity);
+
         final newEmployee = Employee(
           name: employee.name,
           shifts: Map<String, Shift>.from(employeeShifts), // Copy all shifts
-          accumulatedWorkedHours: employee.accumulatedWorkedHours,
-          accumulatedTotalHours: employee.accumulatedTotalHours,
-          accumulatedHolidayHours: employee.accumulatedHolidayHours,
+          accumulatedWorkedHours: carryAccumWorked,
+          accumulatedTotalHours: carryAccumTotal,
+          accumulatedHolidayHours: carryHoliday,
           employeeColor: employee.employeeColor,
           rosterStartDate: mondayDate,
           rosterEndDate: sundayDate,
+          // Carry forward custom accumulated hours with this week's work added
+          customAccumulatedHours: carryAccumWorked,
+          // Clear custom holiday to allow automatic earning in future weeks
+          customHolidayHours: null,
         );
         newEmployees.add(newEmployee);
         print(
@@ -2087,45 +2091,14 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       builder: (context) => EmployeeProfileDialog(
         employee: employee,
         weekDates: widget.weekDates,
+        onEmployeeUpdated: () {
+          setState(() {});
+          _saveCurrentWeekData();
+          final employeeList = _getEmployeeList();
+          widget.onRosterChanged(employeeList);
+          _notifyCurrentWeekDataChanged();
+        },
       ),
-    );
-  }
-
-  Widget _buildStatRow(String label, String value, IconData icon) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: _primaryBlue.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(
-            icon,
-            color: _primaryBlue,
-            size: 20,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: _darkGray,
-            ),
-          ),
-        ),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: _darkGray,
-          ),
-        ),
-      ],
     );
   }
 

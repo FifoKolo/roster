@@ -55,12 +55,13 @@ class _RosterManagerState extends State<RosterManager> {
       DateTime monday;
       DateTime sunday;
       
-      final weekMatch = RegExp(r'Week\s+(\d+)', caseSensitive: false).firstMatch(customName);
+      final weekMatch = RegExp(r'Week\s+(\d+)(?:\s+(\d{4}))?', caseSensitive: false).firstMatch(customName);
       if (weekMatch != null) {
         final targetWeekNumber = int.tryParse(weekMatch.group(1)!);
+        final explicitYear = weekMatch.group(2) != null ? int.tryParse(weekMatch.group(2)!) : null;
         if (targetWeekNumber != null && targetWeekNumber >= 1 && targetWeekNumber <= 53) {
-          // Calculate Monday of the specified ISO week number in current year
-          final year = now.year;
+          // Calculate Monday of the specified ISO week number in the specified or current year
+          final year = explicitYear ?? now.year;
           final jan4 = DateTime(year, 1, 4);
           final week1Monday = jan4.subtract(Duration(days: jan4.weekday - 1));
           monday = week1Monday.add(Duration(days: (targetWeekNumber - 1) * 7));
@@ -84,15 +85,21 @@ class _RosterManagerState extends State<RosterManager> {
       List<Employee> newEmployees = [];
       
       if (names != null && names.trim().isNotEmpty) {
-        newEmployees = names
+        // Deduplicate names case-insensitively while preserving first occurrence
+        final seen = <String>{};
+        final cleanNames = names
             .split(',')
             .map((s) => s.trim())
             .where((s) => s.isNotEmpty)
+            .where((s) => seen.add(s.toLowerCase()))
+            .toList();
+
+        newEmployees = cleanNames
             .map((n) => Employee(
-              name: n,
-              rosterStartDate: monday,
-              rosterEndDate: sunday,
-            ))
+                  name: n,
+                  rosterStartDate: monday,
+                  rosterEndDate: sunday,
+                ))
             .toList();
         print('✅ Created ${newEmployees.length} employees from names');
       }
@@ -284,7 +291,7 @@ class _RosterManagerState extends State<RosterManager> {
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                'Tip: Use simple descriptive names like "Week 42" or "October Roster"',
+                                'Tip: Use names like "Week 1 2026" or "October Roster" for clarity',
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w500,

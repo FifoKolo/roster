@@ -321,13 +321,14 @@ class RosterStorage {
     final sourceEmployees = await loadRoster(sourceRosterName);
     print('✅ Loaded ${sourceEmployees.length} employees from source roster');
     
-    // Create deep copies of employees with same shifts but reset accumulated hours
+    // Create deep copies of employees with same shifts but preserve accumulated hours
     final copiedEmployees = sourceEmployees.map((emp) => Employee(
       name: emp.name,
       shifts: Map<String, Shift>.from(emp.shifts), // Deep copy shifts
       employeeColor: emp.employeeColor,
-      accumulatedWorkedHours: 0.0, // Reset accumulated hours for new roster
-      accumulatedTotalHours: 0.0,
+      accumulatedWorkedHours: emp.accumulatedWorkedHours,
+      accumulatedTotalHours: emp.accumulatedTotalHours,
+      accumulatedHolidayHours: emp.accumulatedHolidayHours,
     )).toList();
     
     print('✅ Created ${copiedEmployees.length} copied employees');
@@ -585,5 +586,71 @@ class RosterStorage {
     // } else {
     //   emps = await _loadLocalRoster(rosterName);
     // }
+  }
+
+  /// Apply custom values to an employee across all future weeks
+  /// Returns the count of rosters updated
+  static Future<int> applyCustomValuesForward({
+    required String employeeName,
+    required double? customAccumulatedHours,
+    required double? customHolidayHours,
+    DateTime? fromDate,
+  }) async {
+    print('🔍 applyCustomValuesForward: $employeeName from $fromDate');
+    
+    try {
+      // Get all roster names
+      final rosterNames = await _loadLocalRosterNames();
+      print('📋 Found ${rosterNames.length} rosters');
+      
+      int updatedCount = 0;
+      final now = DateTime.now();
+      final referenceDate = fromDate ?? now;
+      
+      for (final rosterName in rosterNames) {
+        // Parse week number from roster name (e.g., "Week 5")
+        final match = RegExp(r'^Week (\d+)').firstMatch(rosterName);
+        if (match == null) continue; // Skip non-week rosters
+        
+        final weekNum = int.parse(match.group(1)!);
+        
+        // Estimate the date of this week (rough calculation)
+        // Week 1 = Jan 1 area, Week 52 = Dec 25 area
+        final estimatedDate = DateTime(now.year, 1, 1).add(Duration(days: (weekNum - 1) * 7));
+        
+        // Check if this week is after the reference date (in same or future year)
+        if (estimatedDate.isBefore(referenceDate)) {
+          print('⏭️  Skipping Week $weekNum (in past)');
+          continue;
+        }
+        
+        // Load roster
+        final employees = await _loadLocalRoster(rosterName);
+        
+        // Find and update the employee
+        bool updated = false;
+        for (final emp in employees) {
+          if (emp.name.toLowerCase() == employeeName.toLowerCase()) {
+            print('✏️  Updating $employeeName in $rosterName');
+            emp.customAccumulatedHours = customAccumulatedHours;
+            emp.customHolidayHours = customHolidayHours;
+            updated = true;
+            break;
+          }
+        }
+        
+        if (updated) {
+          await _saveLocalRoster(rosterName, employees);
+          updatedCount++;
+          print('✅ Saved $rosterName');
+        }
+      }
+      
+      print('🎉 applyCustomValuesForward: updated $updatedCount rosters');
+      return updatedCount;
+    } catch (e) {
+      print('❌ Error in applyCustomValuesForward: $e');
+      return 0;
+    }
   }
 }

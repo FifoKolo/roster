@@ -208,6 +208,7 @@ class _ResponsiveRosterPageState extends State<ResponsiveRosterPage> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildWeekHeader() {
     final firstDate = weekDates['Mon'] ?? DateTime.now();
     final lastDate = weekDates['Sun'] ?? DateTime.now();
@@ -345,6 +346,7 @@ class _ResponsiveRosterPageState extends State<ResponsiveRosterPage> {
     }
   }
 
+  // ignore: unused_element
   Future<void> _deleteEmployee(Employee employee) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -373,6 +375,7 @@ class _ResponsiveRosterPageState extends State<ResponsiveRosterPage> {
     }
   }
 
+  // ignore: unused_element
   void _handleShiftTap(BuildContext context, Employee employee, String day) async {
     final currentShift = employee.shifts[day];
     final result = await _showAddShiftDialog(context, currentShift);

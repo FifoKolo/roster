@@ -125,6 +125,14 @@ class Employee {
   DateTime? rosterStartDate;  // Monday of the roster week
   DateTime? rosterEndDate;    // Sunday of the roster week
 
+  // NEW: Admin/Profile information
+  String? email;              // Employee email address
+  String? contractPdfPath;    // Path or URL to contract PDF
+  String? contractPdfName;    // Stored PDF filename
+  String? contractPdfBase64;  // Stored PDF content (base64)
+  double? customAccumulatedHours;  // Custom total accumulated hours (overrides auto calculation)
+  double? customHolidayHours;      // Custom total holiday hours (overrides auto calculation)
+
   Employee({
     required this.name,
     Map<String, Shift>? shifts,
@@ -134,6 +142,12 @@ class Employee {
     this.employeeColor,
     this.rosterStartDate,
     this.rosterEndDate,
+    this.email,
+    this.contractPdfPath,
+    this.contractPdfName,
+    this.contractPdfBase64,
+    this.customAccumulatedHours,
+    this.customHolidayHours,
   }) : shifts = shifts ?? {};
 
   double get totalWorkedHours {
@@ -353,6 +367,12 @@ class Employee {
       'employeeColor': employeeColor?.toARGB32(), // <- persist ARGB
       'rosterStartDate': rosterStartDate?.millisecondsSinceEpoch,
       'rosterEndDate': rosterEndDate?.millisecondsSinceEpoch,
+      'email': email,
+      'contractPdfPath': contractPdfPath,
+      'contractPdfName': contractPdfName,
+      'contractPdfBase64': contractPdfBase64,
+      'customAccumulatedHours': customAccumulatedHours,
+      'customHolidayHours': customHolidayHours,
     };
     print('🔍 Employee.toJson for $name: ${shifts.length} shifts, ${json.toString().substring(0, json.toString().length > 100 ? 100 : json.toString().length)}...');
     return json;
@@ -361,6 +381,12 @@ class Employee {
   static Employee fromJson(Map<String, dynamic> json) {
     final name = (json['name'] ?? '') as String;
     print('🔧 Employee.fromJson for $name starting...');
+    
+    final customAccum = (json['customAccumulatedHours'] as num?)?.toDouble();
+    final customHoliday = (json['customHolidayHours'] as num?)?.toDouble();
+    if (customAccum != null || customHoliday != null) {
+      print('   ✅ Loaded custom values: accum=$customAccum, holiday=$customHoliday');
+    }
     
     final shifts = (() {
       final raw = json['shifts'];
@@ -389,6 +415,12 @@ class Employee {
     employeeColor: (json['employeeColor'] is int) ? Color(json['employeeColor'] as int) : null,
     rosterStartDate: json['rosterStartDate'] != null ? DateTime.fromMillisecondsSinceEpoch(json['rosterStartDate'] as int) : null,
     rosterEndDate: json['rosterEndDate'] != null ? DateTime.fromMillisecondsSinceEpoch(json['rosterEndDate'] as int) : null,
+    email: json['email'] as String?,
+    contractPdfPath: json['contractPdfPath'] as String?,
+      contractPdfName: json['contractPdfName'] as String?,
+      contractPdfBase64: json['contractPdfBase64'] as String?,
+    customAccumulatedHours: (json['customAccumulatedHours'] as num?)?.toDouble(),
+    customHolidayHours: (json['customHolidayHours'] as num?)?.toDouble(),
   );
   }
 }

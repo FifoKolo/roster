@@ -45,7 +45,10 @@ class _RosterPageState extends State<RosterPage> {
       final loadedEmployees = await RosterStorage.loadRoster(widget.rosterName);
       
       // Fix incorrect dates for week-specific rosters
-      final correctedEmployees = _fixWeekDatesIfNeeded(loadedEmployees);
+      var correctedEmployees = _fixWeekDatesIfNeeded(loadedEmployees);
+      
+      // Fix missing accumulated values from previous week
+      correctedEmployees = await _fixMissingAccumulatedValues(correctedEmployees);
       
       setState(() {
         employees = correctedEmployees;
@@ -77,8 +80,10 @@ class _RosterPageState extends State<RosterPage> {
     }
 
     // Calculate what the correct dates should be for this week number
-    final now = DateTime.now();
-    final year = now.year;
+    // Use explicit year from roster name, or infer from stored dates, or fall back to current year
+    // Always use current year for correction (no explicit year support)
+    final int year = DateTime.now().year;
+    
     final jan4 = DateTime(year, 1, 4);
     final week1Monday = jan4.subtract(Duration(days: jan4.weekday - 1));
     final correctMonday = week1Monday.add(Duration(days: (weekNumber - 1) * 7));
@@ -107,6 +112,81 @@ class _RosterPageState extends State<RosterPage> {
       RosterStorage.saveRoster(widget.rosterName, fixedEmployees);
       
       return fixedEmployees;
+    }
+
+    return employees;
+  }
+
+  Future<List<Employee>> _fixMissingAccumulatedValues(List<Employee> employees) async {
+    // Check if this is a week-specific roster
+    final weekMatch = RegExp(r'Week\s+(\d+)', caseSensitive: false).firstMatch(widget.rosterName);
+    if (weekMatch == null || employees.isEmpty) {
+      return employees;
+    }
+
+    final currentWeekNumber = int.tryParse(weekMatch.group(1)!);
+    if (currentWeekNumber == null || currentWeekNumber <= 1) {
+      return employees; // No previous week to check
+    }
+
+    // Check if any employee has suspiciously low accumulated values (all zeros)
+    final hasZeroAccumulated = employees.any((emp) => 
+      emp.accumulatedWorkedHours == 0 && 
+      emp.accumulatedTotalHours == 0 && 
+      emp.accumulatedHolidayHours == 0
+    );
+
+    if (!hasZeroAccumulated) {
+      return employees; // Values look fine
+    }
+
+    // Try to load previous week to get accumulated values (avoid waiting on streams)
+    try {
+      final prevWeekNumber = currentWeekNumber - 1;
+      final prevWeekName = 'Week $prevWeekNumber';
+      print('🔍 Attempting previous-week restore from $prevWeekName');
+      final prevWeekEmployees = await RosterStorage.loadRoster(prevWeekName);
+      
+      if (prevWeekEmployees.isNotEmpty) {
+        print('🔍 Detected missing accumulated values, loaded ${prevWeekEmployees.length} employees from $prevWeekName');
+        
+        // Create a map of previous week's accumulated values
+        final prevAccumulated = <String, Map<String, double>>{};
+        for (final prevEmp in prevWeekEmployees) {
+          prevAccumulated[prevEmp.name] = {
+            'worked': prevEmp.accumulatedWorkedHours,
+            'total': prevEmp.accumulatedTotalHours,
+            'holiday': prevEmp.accumulatedHolidayHours,
+          };
+        }
+        
+        // Update employees with accumulated values from previous week
+        final fixedEmployees = employees.map((emp) {
+          final prevValues = prevAccumulated[emp.name];
+          if (prevValues != null && emp.accumulatedWorkedHours == 0) {
+            print('  ✅ Restored accumulated values for ${emp.name}');
+            return Employee(
+              name: emp.name,
+              shifts: emp.shifts,
+              accumulatedWorkedHours: prevValues['worked']!,
+              accumulatedTotalHours: prevValues['total']!,
+              accumulatedHolidayHours: prevValues['holiday']!,
+              employeeColor: emp.employeeColor,
+              rosterStartDate: emp.rosterStartDate,
+              rosterEndDate: emp.rosterEndDate,
+            );
+          }
+          return emp;
+        }).toList();
+        
+        // Save the fixed values back to storage
+        await RosterStorage.saveRoster(widget.rosterName, fixedEmployees);
+        print('💾 Saved restored accumulated values to ${widget.rosterName}');
+        
+        return fixedEmployees;
+      }
+    } catch (e) {
+      print('⚠️ Could not restore accumulated values from previous week: $e');
     }
 
     return employees;
@@ -292,6 +372,7 @@ class _RosterPageState extends State<RosterPage> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildWeekHeader() {
     final firstDate = weekDates['Mon'] ?? DateTime.now();
     final lastDate = weekDates['Sun'] ?? DateTime.now();
@@ -420,6 +501,19 @@ class _RosterPageState extends State<RosterPage> {
     );
 
     if (result != null && result.isNotEmpty) {
+      // Prevent duplicate staff names (case-insensitive)
+      final exists = employees.any((e) => e.name.trim().toLowerCase() == result.trim().toLowerCase());
+      if (exists) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Staff member "$result" already exists'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
       final newEmployee = Employee(
         name: result,
         rosterStartDate: weekDates['Mon'],
@@ -443,6 +537,7 @@ class _RosterPageState extends State<RosterPage> {
     }
   }
 
+  // ignore: unused_element
   Future<void> _deleteEmployee(Employee employee) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -471,6 +566,7 @@ class _RosterPageState extends State<RosterPage> {
     }
   }
 
+  // ignore: unused_element
   void _handleShiftTap(BuildContext context, Employee employee, String day) async {
     final currentShift = employee.shifts[day];
     final result = await _showAddShiftDialog(context, currentShift);
