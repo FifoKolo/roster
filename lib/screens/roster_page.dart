@@ -74,15 +74,50 @@ class _RosterPageState extends State<RosterPage> {
       return employees;
     }
 
-    final weekNumber = int.tryParse(weekMatch.group(1)!);
-    if (weekNumber == null || weekNumber < 1 || weekNumber > 53) {
+    var weekNumber = int.tryParse(weekMatch.group(1)!);
+    if (weekNumber == null || weekNumber < 1) {
       return employees;
     }
 
     // Calculate what the correct dates should be for this week number
-    // Use explicit year from roster name, or infer from stored dates, or fall back to current year
-    // Always use current year for correction (no explicit year support)
-    final int year = DateTime.now().year;
+    // Infer year from stored dates if available, otherwise use current year
+    int year = DateTime.now().year;
+    
+    // Handle weeks > 53 by wrapping to next year
+    // Week 54 = Week 1 of next year, Week 55 = Week 2 of next year, etc.
+    if (weekNumber > 53) {
+      year = year + 1;
+      weekNumber = weekNumber - 52; // Adjust to valid week number for next year
+      if (weekNumber > 53) weekNumber = 1; // Safety
+    }
+    
+    // If employees have stored dates, try to infer the intended year from them
+    if (employees.isNotEmpty && employees.first.rosterStartDate != null) {
+      final storedDate = employees.first.rosterStartDate!;
+      // Check if the stored date's week number matches our expected week
+      final storedWeekDate = DateTime(storedDate.year, 1, 4);
+      final storedWeek1Monday = storedWeekDate.subtract(Duration(days: storedWeekDate.weekday - 1));
+      final storedWeekMonday = storedWeek1Monday.add(Duration(days: (weekNumber - 1) * 7));
+      
+      // If stored date is close to where it should be for this week/year, use stored year
+      if (storedDate.difference(storedWeekMonday).inDays.abs() < 7) {
+        year = storedDate.year;
+      } else if (weekNumber <= 4) {
+        // Early weeks might belong to previous year in ISO calendar
+        // Check if January dates would make sense
+        final jan1 = DateTime(year, 1, 1);
+        if (jan1.weekday > 4) {
+          // If Jan 1 is Thu+ (Thu/Fri/Sat/Sun), week 1 starts in December previous year
+          year = year - 1;
+        }
+      }
+    } else if (weekNumber <= 4) {
+      // No stored dates; check if early weeks should be previous year
+      final jan1 = DateTime(year, 1, 1);
+      if (jan1.weekday > 4) {
+        year = year - 1;
+      }
+    }
     
     final jan4 = DateTime(year, 1, 4);
     final week1Monday = jan4.subtract(Duration(days: jan4.weekday - 1));
@@ -92,11 +127,10 @@ class _RosterPageState extends State<RosterPage> {
     // Check if the stored dates are incorrect
     final storedMonday = employees.first.rosterStartDate;
     if (storedMonday != null && storedMonday.difference(correctMonday).inDays.abs() > 0) {
-      print('🔧 Fixing incorrect dates for ${widget.rosterName}');
+      print('🔧 Fixing incorrect dates for ${widget.rosterName} (Week $weekNumber, Year $year)');
       print('   Old: ${storedMonday.toIso8601String().split('T')[0]}');
       print('   New: ${correctMonday.toIso8601String().split('T')[0]}');
       
-      // Update all employees with correct dates
       final fixedEmployees = employees.map((emp) => Employee(
         name: emp.name,
         shifts: emp.shifts,
@@ -106,6 +140,8 @@ class _RosterPageState extends State<RosterPage> {
         employeeColor: emp.employeeColor,
         rosterStartDate: correctMonday,
         rosterEndDate: correctSunday,
+        customAccumulatedHours: emp.customAccumulatedHours,
+        customHolidayHours: emp.customHolidayHours,
       )).toList();
       
       // Save the corrected dates back to storage
