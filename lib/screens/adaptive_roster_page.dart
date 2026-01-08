@@ -6,9 +6,9 @@ class AdaptiveRosterPage extends StatelessWidget {
   final String rosterName;
 
   const AdaptiveRosterPage({
-    Key? key,
+    super.key,
     required this.rosterName,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

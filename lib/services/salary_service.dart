@@ -156,8 +156,10 @@ class SalaryService {
       totalPaidBreakHours = (shiftsWorked * globalSettings.defaultPaidBreakMinutesPerShift) / 60.0;
     }
 
-    // Use PAID HOURS (including breaks) for base calculation
-    final adjustedPaidHours = employee.totalPaidHours + totalPaidBreakHours;
+    // Calculate deducted breaks using global settings (for consistency with what we calculated as paid)
+    final deductedBreakHours = employee.calculateBreakHours(globalSettings.enableAutomaticBreaks, globalSettings.breakBehavior);
+    // Total paid = worked hours - deducted breaks + paid breaks
+    final adjustedPaidHours = employee.totalWorkedHours - deductedBreakHours + totalPaidBreakHours;
     final baseEarnings = adjustedPaidHours * profile.baseSalaryPerHour;
     
     double sundayBonus = 0.0;

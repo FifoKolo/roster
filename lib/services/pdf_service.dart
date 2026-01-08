@@ -238,7 +238,7 @@ class PdfService {
                   children: [
                     _buildTableCell(e.name, PdfColors.black, bold: true),
                     _buildTableCell(e.totalScheduledHours.toStringAsFixed(2), PdfColors.black, bold: true),
-                    _buildTableCell(e.breakHours.toStringAsFixed(2), PdfColors.red, bold: true),
+                    _buildTableCell(_formatBreakTime(e.breakHours), PdfColors.red, bold: true),
                     _buildTableCell(e.totalPaidHours.toStringAsFixed(2), PdfColors.green700, bold: true),
                     _buildTableCell(e.totalMondayToSaturdayPaidHours.toStringAsFixed(2), PdfColors.blue, bold: true),
                     _buildTableCell(e.totalSundayPaidHours.toStringAsFixed(2), PdfColors.purple, bold: true),
@@ -255,7 +255,7 @@ class PdfService {
                 children: [
                   _buildTableCell('TOTALS:', PdfColors.black, bold: true),
                   _buildTableCell(employees.fold(0.0, (sum, e) => sum + e.totalScheduledHours).toStringAsFixed(2), PdfColors.black, bold: true),
-                  _buildTableCell(employees.fold(0.0, (sum, e) => sum + e.breakHours).toStringAsFixed(2), PdfColors.red, bold: true),
+                  _buildTableCell(_formatBreakTime(employees.fold(0.0, (sum, e) => sum + e.breakHours)), PdfColors.red, bold: true),
                   _buildTableCell(employees.fold(0.0, (sum, e) => sum + e.totalPaidHours).toStringAsFixed(2), PdfColors.green700, bold: true),
                   _buildTableCell(employees.fold(0.0, (sum, e) => sum + e.totalMondayToSaturdayPaidHours).toStringAsFixed(2), PdfColors.blue, bold: true),
                   _buildTableCell(employees.fold(0.0, (sum, e) => sum + e.totalSundayPaidHours).toStringAsFixed(2), PdfColors.purple, bold: true),
@@ -596,5 +596,20 @@ class PdfService {
   static bool _isBankHoliday(DateTime? date) {
     if (date == null) return false;
     return IrishBankHolidays.isBankHoliday(date);
+  }
+
+  // Helper: format break hours as "Xh Ymin" (e.g., "0h 40min" or "1h 30min") for clarity
+  static String _formatBreakTime(double breakHours) {
+    final totalMinutes = (breakHours * 60).round();
+    final hours = totalMinutes ~/ 60;
+    final minutes = totalMinutes % 60;
+    
+    if (hours == 0) {
+      return '${minutes}min';
+    } else if (minutes == 0) {
+      return '${hours}h';
+    } else {
+      return '${hours}h ${minutes}min';
+    }
   }
 }

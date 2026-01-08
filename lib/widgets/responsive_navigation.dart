@@ -239,10 +239,10 @@ class _BottomSheetContent extends StatelessWidget {
   final Widget child;
 
   const _BottomSheetContent({
-    Key? key,
+    super.key,
     this.title,
     required this.child,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
