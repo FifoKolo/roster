@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import '../models/employee_model.dart';
 import '../services/roster_storage.dart';
 import '../services/pdf_service.dart';
+import '../services/time_service.dart';
 import '../widgets/modern_roster_table.dart';
 import '../widgets/add_shift_dialog.dart';
 import '../widgets/global_salary_settings_dialog.dart';
@@ -31,7 +32,7 @@ class _RosterPageState extends State<RosterPage> {
   
   // Current week's data for PDF generation
   List<Employee> currentWeekEmployees = [];
-  DateTime currentWeekDate = DateTime.now();
+  DateTime currentWeekDate = TimeService.nowSync();
 
   @override
   void initState() {
@@ -81,7 +82,7 @@ class _RosterPageState extends State<RosterPage> {
 
     // Calculate what the correct dates should be for this week number
     // Infer year from stored dates if available, otherwise use current year
-    int year = DateTime.now().year;
+    int year = TimeService.nowSync().year;
     
     // Handle weeks > 53 by wrapping to next year
     // Week 54 = Week 1 of next year, Week 55 = Week 2 of next year, etc.
@@ -248,7 +249,7 @@ class _RosterPageState extends State<RosterPage> {
   }
 
   void _initWeekDates() {
-    final now = DateTime.now();
+    final now = TimeService.nowSync();
     final monday = now.subtract(Duration(days: now.weekday - 1));
     for (int i = 0; i < 7; i++) {
       final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -410,8 +411,8 @@ class _RosterPageState extends State<RosterPage> {
 
   // ignore: unused_element
   Widget _buildWeekHeader() {
-    final firstDate = weekDates['Mon'] ?? DateTime.now();
-    final lastDate = weekDates['Sun'] ?? DateTime.now();
+    final firstDate = weekDates['Mon'] ?? TimeService.nowSync();
+    final lastDate = weekDates['Sun'] ?? TimeService.nowSync();
     
     return Container(
       width: double.infinity,
@@ -810,7 +811,7 @@ class _RosterPageState extends State<RosterPage> {
   }
 
   String _getWeekDescription(DateTime monday) {
-    final now = DateTime.now();
+    final now = TimeService.nowSync();
     final currentWeekStart = now.subtract(Duration(days: now.weekday - 1));
     
     if (_isSameWeek(monday, currentWeekStart)) {

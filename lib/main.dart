@@ -23,11 +23,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/roster_manager.dart';
 import 'services/roster_storage.dart';
 import 'services/auth_service.dart';
+import 'services/time_service.dart';
 import 'theme/app_theme.dart';
 
 // Entry point
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize accurate time service (uses NTP for accurate dates)
+  await TimeService.initialize();
 
   // Force local-only mode to bypass Firebase issues for now
   var localOnly = true;

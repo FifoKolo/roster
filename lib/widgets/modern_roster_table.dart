@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/employee_model.dart';
 import '../services/irish_bank_holidays.dart';
 import '../services/roster_storage.dart';
+import '../services/time_service.dart';
 import '../screens/roster_page.dart';
 import '../widgets/employee_profile_dialog.dart';
 import '../theme/app_theme.dart';
@@ -43,7 +44,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     'Sat',
     'Sun'
   ];
-  DateTime _currentWeek = DateTime.now();
+  DateTime _currentWeek = TimeService.nowSync();
 
   // Week-specific data storage to maintain separate schedules for each week
   final Map<String, Map<String, Map<String, Shift>>> _weeklyData = {};
@@ -468,12 +469,12 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     return ElevatedButton(
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
-        backgroundColor: _lightGray,
-        foregroundColor: _darkGray,
+        backgroundColor: _primaryBlue.withOpacity(0.1),
+        foregroundColor: _primaryBlue,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: _darkGray.withOpacity(0.3)),
+          side: BorderSide(color: _primaryBlue.withOpacity(0.3)),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       ),
@@ -514,9 +515,34 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     final prevWeekNumber = currentWeekNumber - 1;
     final nextWeekNumber = currentWeekNumber + 1;
 
-    // Build simple prev/next names without year
-    final String prevWeekName = 'Week $prevWeekNumber';
-    final String nextWeekName = 'Week $nextWeekNumber';
+    // Calculate year for prev/next weeks based on current roster dates
+    int currentYear = TimeService.nowSync().year;
+    final employeeList = _getEmployeeList();
+    if (employeeList.isNotEmpty && employeeList.first.rosterStartDate != null) {
+      currentYear = employeeList.first.rosterStartDate!.year;
+    }
+    
+    // Determine year for previous week
+    int prevYear = currentYear;
+    if (prevWeekNumber < 1) {
+      prevYear = currentYear - 1;
+    } else if (currentWeekNumber <= 10 && prevWeekNumber >= 45) {
+      // Crossing from January back to December
+      prevYear = currentYear - 1;
+    }
+    
+    // Determine year for next week
+    int nextYear = currentYear;
+    if (nextWeekNumber > 53) {
+      nextYear = currentYear + 1;
+    } else if (currentWeekNumber >= 45 && nextWeekNumber <= 10) {
+      // Crossing from December to January
+      nextYear = currentYear + 1;
+    }
+
+    // Build prev/next names with year
+    final String prevWeekName = prevWeekNumber < 1 ? 'Week ${52 + prevWeekNumber} $prevYear' : 'Week $prevWeekNumber $prevYear';
+    final String nextWeekName = nextWeekNumber > 53 ? 'Week ${nextWeekNumber - 52} $nextYear' : 'Week $nextWeekNumber $nextYear';
 
     return Row(
       children: [
@@ -1802,7 +1828,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
               print('🔄 Year rollover detected: assigning $year for week $weekNumber');
             }
           } else {
-            year = DateTime.now().year;
+            year = TimeService.nowSync().year;
           }
           
           // Find January 4th of the year (which is always in week 1)
@@ -1816,14 +1842,14 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           print('🔍 Calculated dates for fresh $newWeekKey: ${mondayDate.toIso8601String().split('T')[0]} to ${sundayDate.toIso8601String().split('T')[0]}');
         } else {
           // Fallback to current week if parsing fails
-          final now = DateTime.now();
+          final now = TimeService.nowSync();
           mondayDate = now.subtract(Duration(days: now.weekday - 1));
           sundayDate = mondayDate.add(Duration(days: 6));
           print('⚠️ Using fallback dates for fresh $newWeekKey');
         }
       } else {
         // Fallback to current week if no week number found
-        final now = DateTime.now();
+        final now = TimeService.nowSync();
         mondayDate = now.subtract(Duration(days: now.weekday - 1));
         sundayDate = mondayDate.add(Duration(days: 6));
         print('⚠️ Using fallback dates for fresh $newWeekKey (no week number)');
@@ -1933,7 +1959,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
               print('🔄 Year rollover detected: assigning $year for week $weekNumber');
             }
           } else {
-            year = DateTime.now().year;
+            year = TimeService.nowSync().year;
           }
           
           // Find January 4th of the year (which is always in week 1)
@@ -1950,7 +1976,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       
       // Fallback to current week if parsing fails
       if (mondayDate == null || sundayDate == null) {
-        final now = DateTime.now();
+        final now = TimeService.nowSync();
         mondayDate = now.subtract(Duration(days: now.weekday - 1));
         sundayDate = mondayDate.add(Duration(days: 6));
         print('⚠️ Using fallback dates for $newWeekKey');
@@ -2051,7 +2077,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     // Save current week's data before navigation
     _saveCurrentWeekData();
 
-    final now = DateTime.now();
+    final now = TimeService.nowSync();
     final monday = now.subtract(Duration(days: now.weekday - 1));
     setState(() {
       _currentWeek = monday;
