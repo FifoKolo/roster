@@ -540,9 +540,13 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       nextYear = currentYear + 1;
     }
 
-    // Build prev/next names with year
-    final String prevWeekName = prevWeekNumber < 1 ? 'Week ${52 + prevWeekNumber} $prevYear' : 'Week $prevWeekNumber $prevYear';
-    final String nextWeekName = nextWeekNumber > 53 ? 'Week ${nextWeekNumber - 52} $nextYear' : 'Week $nextWeekNumber $nextYear';
+    // Build prev/next names - only include year if crossing year boundary or week > 53
+    final String prevWeekName = prevWeekNumber < 1 
+        ? 'Week ${52 + prevWeekNumber}' 
+        : (prevYear != currentYear ? 'Week $prevWeekNumber $prevYear' : 'Week $prevWeekNumber');
+    final String nextWeekName = nextWeekNumber > 53 
+        ? 'Week ${nextWeekNumber - 52}' 
+        : (nextYear != currentYear ? 'Week $nextWeekNumber $nextYear' : 'Week $nextWeekNumber');
 
     return Row(
       children: [
@@ -582,12 +586,26 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
               final rosterNames =
                   prefs.getStringList('roster_names') ?? <String>[];
               print('Got roster names directly: ${rosterNames.join(", ")}');
-              final exists = rosterNames.contains(prevWeekName);
-              print('Does $prevWeekName exist? $exists');
+              
+              // Check for exact match first
+              var exists = rosterNames.contains(prevWeekName);
+              var targetName = prevWeekName;
+              
+              // If not found, try alternative format (with/without year)
+              if (!exists) {
+                final altName = _getAlternativeWeekName(prevWeekName, prevYear);
+                print('Exact match not found, trying alternative: $altName');
+                if (rosterNames.contains(altName)) {
+                  exists = true;
+                  targetName = altName;
+                  print('Found alternative format: $altName');
+                }
+              }
+              print('Does $targetName exist? $exists');
 
               if (exists) {
-                print('Navigating to existing $prevWeekName');
-                _navigateToWeekRoster(prevWeekName);
+                print('Navigating to existing $targetName');
+                _navigateToWeekRoster(targetName);
               } else {
                 print('Showing dialog to create new $prevWeekName');
                 // Get current week shifts for copying option
@@ -633,12 +651,26 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
               final rosterNames =
                   prefs.getStringList('roster_names') ?? <String>[];
               print('Got roster names directly: ${rosterNames.join(", ")}');
-              final exists = rosterNames.contains(nextWeekName);
-              print('Does $nextWeekName exist? $exists');
+              
+              // Check for exact match first
+              var exists = rosterNames.contains(nextWeekName);
+              var targetName = nextWeekName;
+              
+              // If not found, try alternative format (with/without year)
+              if (!exists) {
+                final altName = _getAlternativeWeekName(nextWeekName, nextYear);
+                print('Exact match not found, trying alternative: $altName');
+                if (rosterNames.contains(altName)) {
+                  exists = true;
+                  targetName = altName;
+                  print('Found alternative format: $altName');
+                }
+              }
+              print('Does $targetName exist? $exists');
 
               if (exists) {
-                print('Navigating to existing $nextWeekName');
-                _navigateToWeekRoster(nextWeekName);
+                print('Navigating to existing $targetName');
+                _navigateToWeekRoster(targetName);
               } else {
                 print('Showing dialog to create new $nextWeekName');
                 // Get current week shifts for copying option
@@ -1861,21 +1893,19 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       for (final employee in employeeList) {
         // Carry-forward accumulated values to next week (respect custom overrides)
         final baseAccumWorked = employee.customAccumulatedHours ?? employee.accumulatedWorkedHours;
-        final baseHoliday = employee.customHolidayHours ?? employee.accumulatedHolidayHours;
         final carryAccumWorked = baseAccumWorked + employee.totalWorkedHours;
         final carryAccumTotal = employee.accumulatedTotalHours + employee.totalWorkedHours;
         
-        // If custom holiday is set, don't add earned hours (custom is the baseline)
-        // If not custom, add earned hours and subtract used
-        final earnedHolidayThisWeek = employee.customHolidayHours != null ? 0.0 : employee.holidayHoursEarnedThisWeek;
-        final carryHoliday = (baseHoliday + earnedHolidayThisWeek - employee.totalHolidayHoursUsed).clamp(0.0, double.infinity);
+        // Holiday hours: use the remaining balance from this week as the starting point for next week
+        // This ensures holidays are properly deducted and earned hours are accumulated
+        final carryHoliday = employee.remainingAccumulatedHolidayHours.clamp(0.0, double.infinity);
 
         final newEmployee = Employee(
           name: employee.name,
           shifts: <String, Shift>{}, // Empty shifts
           accumulatedWorkedHours: carryAccumWorked,
           accumulatedTotalHours: carryAccumTotal,
-          accumulatedHolidayHours: carryHoliday, // Carry remaining holiday into next week
+          accumulatedHolidayHours: carryHoliday, // Use remaining balance after deductions
           employeeColor: employee.employeeColor,
           rosterStartDate: mondayDate,
           rosterEndDate: sundayDate,
@@ -2133,6 +2163,18 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       context,
       MaterialPageRoute(builder: (_) => RosterPage(rosterName: rosterName)),
     );
+  }
+
+  // Get alternative week name format (toggle between with/without year)
+  String _getAlternativeWeekName(String weekName, int year) {
+    final match = RegExp(r'Week (\d+)(?: (\d{4}))?').firstMatch(weekName);
+    if (match == null) return weekName;
+    
+    final weekNum = match.group(1)!;
+    final hasYear = match.group(2) != null;
+    
+    // If it has year, return without year; if no year, return with year
+    return hasYear ? 'Week $weekNum' : 'Week $weekNum $year';
   }
 
   void _showDeleteEmployeeDialog(String employeeName) {

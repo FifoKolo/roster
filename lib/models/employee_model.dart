@@ -156,23 +156,24 @@ class Employee {
 
   // Calculate break time based on hours worked and global settings
   double calculateBreakHours(bool enableAutomaticBreaks, String breakBehavior) {
-    if (!enableAutomaticBreaks) return 0.0;
-    
     double totalBreaks = 0.0;
-    
+
     // Calculate breaks for EACH individual shift
     for (final shift in shifts.values) {
       if (shift.isHoliday) continue; // No breaks for holiday shifts
-      
-      // If custom break is set for this shift, use it instead of automatic
+
+      // Always honor custom break minutes even when automatic breaks are off
       if (shift.customBreakMinutes != null) {
         totalBreaks += shift.customBreakMinutes! / 60.0;
         continue;
       }
-      
+
+      // If automatic breaks are disabled globally, skip automatic logic
+      if (!enableAutomaticBreaks) continue;
+
       final shiftHours = shift.duration;
       bool shouldCalculateBreak = false;
-      
+
       // Determine if break should be calculated based on behavior
       switch (breakBehavior) {
         case 'always_on':
@@ -187,7 +188,7 @@ class Employee {
           shouldCalculateBreak = shift.enablePaidBreak ?? true;
           break;
       }
-      
+
       if (shouldCalculateBreak) {
         // Use automatic break calculation: 4.5hrs = 15min, 6hrs = 30min
         if (shiftHours >= 6.0) {
@@ -197,7 +198,7 @@ class Employee {
         }
       }
     }
-    
+
     return totalBreaks;
   }
 
@@ -264,11 +265,14 @@ class Employee {
 
   // Calculate remaining accumulated holiday hours after this roster
   double get remainingAccumulatedHolidayHours {
-    // Calculate holiday hours earned this week (8% of worked hours)
+    // Custom holiday hours act as an additive adjustment to the accumulated balance
+    final baseHolidayHours = accumulatedHolidayHours + (customHolidayHours ?? 0.0);
+
+    // ALWAYS calculate holiday hours earned this week (8% of worked hours)
     final holidayEarnedThisWeek = totalPaidHours * 0.08;
     
-    // Calculate total available = accumulated + earned this week
-    final totalAvailable = accumulatedHolidayHours + holidayEarnedThisWeek;
+    // Calculate total available = base + earned this week
+    final totalAvailable = baseHolidayHours + holidayEarnedThisWeek;
     
     // Subtract holiday hours used this week
     return totalAvailable - totalHolidayHoursUsed;

@@ -116,9 +116,8 @@ class SalaryService {
         final shift = entry.value;
         if (shift.isHoliday || shift.duration <= 0) continue;
         
-        // If custom break is set for this shift, use it
+        // Skip custom breaks - they're handled in calculateBreakHours()
         if (shift.customBreakMinutes != null) {
-          totalPaidBreakHours += shift.customBreakMinutes! / 60.0;
           continue;
         }
         
@@ -146,14 +145,18 @@ class SalaryService {
         }
       }
     } else {
-      // Use manual break calculation from global settings
-      int shiftsWorked = 0;
+      // Manual mode: honor per-shift custom breaks; otherwise use default per-shift minutes
+      totalPaidBreakHours = 0.0;
       for (final shift in employee.shifts.values) {
-        if (!shift.isHoliday && shift.duration > 0) {
-          shiftsWorked++;
+        if (shift.isHoliday || shift.duration <= 0) continue;
+
+        // Skip custom breaks - they're handled in calculateBreakHours()
+        if (shift.customBreakMinutes != null) {
+          continue;
         }
+        
+        totalPaidBreakHours += globalSettings.defaultPaidBreakMinutesPerShift / 60.0;
       }
-      totalPaidBreakHours = (shiftsWorked * globalSettings.defaultPaidBreakMinutesPerShift) / 60.0;
     }
 
     // Calculate deducted breaks using global settings (for consistency with what we calculated as paid)

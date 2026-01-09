@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/employee_model.dart';
 import '../services/irish_bank_holidays.dart';
+import '../services/roster_storage.dart';
 
 class RosterTable extends StatefulWidget {
   final List<Employee> employees;
@@ -526,6 +527,51 @@ class _RosterTableState extends State<RosterTable> with TickerProviderStateMixin
     await widget.onRosterChanged(widget.employees);
   }
 
+  Future<void> _promptApplyHolidayHoursForward(Employee emp, double newValue) async {
+    final shouldApply = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Apply to Future Weeks?'),
+        content: Text(
+          'Do you want to update ${emp.name}\'s holiday hours in all future rosters?\n\n'
+          'This will set ${newValue.toStringAsFixed(1)} hours as the baseline for upcoming weeks.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No, This Week Only'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Yes, Apply Forward'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldApply == true && mounted) {
+      // Apply the new holiday hours value to all future rosters
+      final updatedCount = await RosterStorage.applyCustomValuesForward(
+        employeeName: emp.name,
+        customAccumulatedHours: null, // Don't change accumulated hours
+        customHolidayHours: newValue,
+      );
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Updated holiday hours in $updatedCount future roster(s)'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _editAccumulatedHolidayHours(Employee emp) async {
     final controller = TextEditingController(text: emp.accumulatedHolidayHours.toString());
     
@@ -620,12 +666,62 @@ class _RosterTableState extends State<RosterTable> with TickerProviderStateMixin
               });
               Navigator.pop(context);
               await widget.onRosterChanged(widget.employees);
+              
+              // Ask if user wants to apply to future weeks
+              if (mounted) {
+                _promptApplyHolidayHoursForward(emp, newValue);
+              }
             },
             child: const Text('Save'),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _promptApplyHolidayHoursForward(Employee emp, double newValue) async {
+    final shouldApply = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Apply to Future Weeks?'),
+        content: Text(
+          'Do you want to update ${emp.name}\'s holiday hours in all future rosters?\n\n'
+          'This will set ${newValue.toStringAsFixed(1)} hours as the baseline for upcoming weeks.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No, This Week Only'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Yes, Apply Forward'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldApply == true && mounted) {
+      // Apply the new holiday hours value to all future rosters
+      final updatedCount = await RosterStorage.applyCustomValuesForward(
+        employeeName: emp.name,
+        customAccumulatedHours: null, // Don't change accumulated hours
+        customHolidayHours: newValue,
+      );
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Updated holiday hours in $updatedCount future roster(s)'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
   }
 
   // Reuse the same simple color picker used in AddShiftDialog, with live highlight

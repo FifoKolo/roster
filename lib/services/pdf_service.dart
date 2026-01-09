@@ -35,6 +35,7 @@ class PdfService {
     List<Employee> employees,
     Map<String, DateTime> weekDates, {
     Map<String, int?>? style,
+    String? rosterName,
   }) async {
     print('📄 Building Public PDF with ${employees.length} employees');
     for (final emp in employees) {
@@ -50,7 +51,7 @@ class PdfService {
     final headerBg = _pdfC(style?['headerColor'], PdfColors.blueGrey100);
     final headerFg = _pdfC(style?['headerTextColor'], PdfColors.black);
     final borderC = _pdfC(style?['cellBorderColor'], PdfColors.grey300);
-
+    final dayLabelFmt = DateFormat('dd MMM');
     final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
     final columnWidths = <int, pw.TableColumnWidth>{
@@ -69,6 +70,10 @@ class PdfService {
         build: (ctx) => [
           pw.Text('Weekly Schedule - Staff Copy', 
                    style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(height: 4),
+          if (_extractWeekNumber(rosterName) != null)
+            pw.Text('Week ${_extractWeekNumber(rosterName)}', 
+                   style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 8),
           pw.Text(
             '${dateFmt.format(weekDates[days.first] ?? DateTime.now())} - ${dateFmt.format(weekDates[days.last] ?? DateTime.now())}',
@@ -91,7 +96,10 @@ class PdfService {
                       padding: pw.EdgeInsets.all(6),
                       child: pw.Column(
                         children: [
-                          pw.Text(d, style: pw.TextStyle(color: headerFg, fontWeight: pw.FontWeight.bold)),
+                          pw.Text(
+                            weekDates[d] != null ? dayLabelFmt.format(weekDates[d]!) : d,
+                            style: pw.TextStyle(color: headerFg, fontWeight: pw.FontWeight.bold),
+                          ),
                           // Check for bank holiday
                           if (_isBankHoliday(weekDates[d]))
                             pw.Text('BANK HOLIDAY', 
@@ -130,6 +138,7 @@ class PdfService {
     List<Employee> employees,
     Map<String, DateTime> weekDates, {
     Map<String, int?>? style,
+    String? rosterName,
   }) async {
     print('📄 Building Private PDF with ${employees.length} employees');
     for (final emp in employees) {
@@ -145,7 +154,7 @@ class PdfService {
     final headerBg = _pdfC(style?['headerColor'], PdfColors.blueGrey100);
     final headerFg = _pdfC(style?['headerTextColor'], PdfColors.black);
     final borderC = _pdfC(style?['cellBorderColor'], PdfColors.grey300);
-
+    final dayLabelFmt = DateFormat('dd MMM');
     final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
     pdf.addPage(
@@ -156,6 +165,10 @@ class PdfService {
         build: (ctx) => [
           pw.Text('Weekly Roster - Management Report', 
                    style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+          pw.SizedBox(height: 4),
+          if (_extractWeekNumber(rosterName) != null)
+            pw.Text('Week ${_extractWeekNumber(rosterName)}', 
+                   style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
           pw.SizedBox(height: 8),
           pw.Text(
             '${dateFmt.format(weekDates[days.first] ?? DateTime.now())} - ${dateFmt.format(weekDates[days.last] ?? DateTime.now())}',
@@ -180,7 +193,11 @@ class PdfService {
                   _buildTableCell('Employee', headerFg, bold: true),
                   for (final d in days) 
                     _buildTableCell(
-                      _isBankHoliday(weekDates[d]) ? '$d\n(BANK HOLIDAY)' : d, 
+                      weekDates[d] != null
+                        ? (_isBankHoliday(weekDates[d])
+                            ? '${dayLabelFmt.format(weekDates[d]!)}\n(BANK HOLIDAY)'
+                            : dayLabelFmt.format(weekDates[d]!))
+                        : d,
                       _isBankHoliday(weekDates[d]) ? PdfColors.red : headerFg, 
                       bold: true
                     ),
@@ -244,9 +261,13 @@ class PdfService {
                     _buildTableCell(e.totalSundayPaidHours.toStringAsFixed(2), PdfColors.purple, bold: true),
                     _buildTableCell(e.totalHolidayHoursUsed.toStringAsFixed(2), PdfColors.orange, bold: true),
                     _buildTableCell(((e.customAccumulatedHours ?? e.accumulatedWorkedHours) + e.totalWorkedHours).toStringAsFixed(2), PdfColors.cyan, bold: true),
-                    _buildTableCell(e.remainingAccumulatedHolidayHours.toStringAsFixed(2), 
-                        e.remainingAccumulatedHolidayHours < 0 ? PdfColors.red : PdfColors.green700, bold: true),
-                    _buildTableCell((e.customHolidayHours ?? (e.accumulatedHolidayHours + e.holidayHoursEarnedThisWeek)).toStringAsFixed(2), PdfColors.cyan, bold: true),
+                    // Holiday balances: total = (accumulated + custom) + earned; remaining = total - used
+                    _buildTableCell(((e.accumulatedHolidayHours + (e.customHolidayHours ?? 0) + e.holidayHoursEarnedThisWeek - e.totalHolidayHoursUsed)).toStringAsFixed(2),
+                      (((e.accumulatedHolidayHours + (e.customHolidayHours ?? 0) + e.holidayHoursEarnedThisWeek - e.totalHolidayHoursUsed)) < 0)
+                        ? PdfColors.red
+                        : PdfColors.green700,
+                      bold: true),
+                    _buildTableCell(((e.accumulatedHolidayHours + (e.customHolidayHours ?? 0) + e.holidayHoursEarnedThisWeek)).toStringAsFixed(2), PdfColors.cyan, bold: true),
                   ],
                 ),
               // Totals row
@@ -261,8 +282,18 @@ class PdfService {
                   _buildTableCell(employees.fold(0.0, (sum, e) => sum + e.totalSundayPaidHours).toStringAsFixed(2), PdfColors.purple, bold: true),
                   _buildTableCell(employees.fold(0.0, (sum, e) => sum + e.totalHolidayHoursUsed).toStringAsFixed(2), PdfColors.orange, bold: true),
                   _buildTableCell(employees.fold(0.0, (sum, e) => sum + ((e.customAccumulatedHours ?? e.accumulatedWorkedHours) + e.totalWorkedHours)).toStringAsFixed(2), PdfColors.cyan, bold: true),
-                  _buildTableCell(employees.fold(0.0, (sum, e) => sum + e.remainingAccumulatedHolidayHours).toStringAsFixed(2), PdfColors.green700, bold: true),
-                  _buildTableCell(employees.fold(0.0, (sum, e) => sum + (e.customHolidayHours ?? (e.accumulatedHolidayHours + e.holidayHoursEarnedThisWeek))).toStringAsFixed(2), PdfColors.cyan, bold: true),
+                        _buildTableCell(
+                          employees
+                            .fold(0.0, (sum, e) => sum + (e.accumulatedHolidayHours + (e.customHolidayHours ?? 0) + e.holidayHoursEarnedThisWeek - e.totalHolidayHoursUsed))
+                            .toStringAsFixed(2),
+                          PdfColors.green700,
+                          bold: true),
+                        _buildTableCell(
+                          employees
+                            .fold(0.0, (sum, e) => sum + (e.accumulatedHolidayHours + (e.customHolidayHours ?? 0) + e.holidayHoursEarnedThisWeek))
+                            .toStringAsFixed(2),
+                          PdfColors.cyan,
+                          bold: true),
                 ],
               ),
             ],
@@ -523,8 +554,9 @@ class PdfService {
     List<Employee> employees,
     Map<String, DateTime> weekDates, {
     Map<String, int?>? style,
+    String? rosterName,
   }) async {
-    final bytes = await buildPublicRosterPdf(employees, weekDates, style: style);
+    final bytes = await buildPublicRosterPdf(employees, weekDates, style: style, rosterName: rosterName);
     final date = DateFormat('yyyyMMdd').format(DateTime.now());
     await Printing.sharePdf(bytes: bytes, filename: 'schedule_staff_$date.pdf');
   }
@@ -535,8 +567,9 @@ class PdfService {
     List<Employee> employees,
     Map<String, DateTime> weekDates, {
     Map<String, int?>? style,
+    String? rosterName,
   }) async {
-    final bytes = await buildPrivateRosterPdf(employees, weekDates, style: style);
+    final bytes = await buildPrivateRosterPdf(employees, weekDates, style: style, rosterName: rosterName);
     final date = DateFormat('yyyyMMdd').format(DateTime.now());
     await Printing.sharePdf(bytes: bytes, filename: 'roster_management_$date.pdf');
   }
@@ -546,8 +579,9 @@ class PdfService {
     List<Employee> employees,
     Map<String, DateTime> weekDates, {
     Map<String, int?>? style,
+    String? rosterName,
   }) async {
-    await Printing.layoutPdf(onLayout: (_) => buildPublicRosterPdf(employees, weekDates, style: style));
+    await Printing.layoutPdf(onLayout: (_) => buildPublicRosterPdf(employees, weekDates, style: style, rosterName: rosterName));
   }
 
   /// Print/preview the PRIVATE roster PDF
@@ -555,8 +589,9 @@ class PdfService {
     List<Employee> employees,
     Map<String, DateTime> weekDates, {
     Map<String, int?>? style,
+    String? rosterName,
   }) async {
-    await Printing.layoutPdf(onLayout: (_) => buildPrivateRosterPdf(employees, weekDates, style: style));
+    await Printing.layoutPdf(onLayout: (_) => buildPrivateRosterPdf(employees, weekDates, style: style, rosterName: rosterName));
   }
 
   // Legacy method - now points to public PDF for backward compatibility
@@ -564,8 +599,9 @@ class PdfService {
     List<Employee> employees,
     Map<String, DateTime> weekDates, {
     Map<String, int?>? style,
+    String? rosterName,
   }) async {
-    return buildPublicRosterPdf(employees, weekDates, style: style);
+    return buildPublicRosterPdf(employees, weekDates, style: style, rosterName: rosterName);
   }
 
   static Future<void> shareRosterPdf(
@@ -573,16 +609,18 @@ class PdfService {
     List<Employee> employees,
     Map<String, DateTime> weekDates, {
     Map<String, int?>? style,
+    String? rosterName,
   }) async {
-    return sharePublicRosterPdf(context, employees, weekDates, style: style);
+    return sharePublicRosterPdf(context, employees, weekDates, style: style, rosterName: rosterName);
   }
 
   static Future<void> printRosterPdf(
     List<Employee> employees,
     Map<String, DateTime> weekDates, {
     Map<String, int?>? style,
+    String? rosterName,
   }) async {
-    return printPublicRosterPdf(employees, weekDates, style: style);
+    return printPublicRosterPdf(employees, weekDates, style: style, rosterName: rosterName);
   }
 
   // Helpers: convert ARGB int to PdfColor (RGB used; alpha ignored).
@@ -596,6 +634,13 @@ class PdfService {
   static bool _isBankHoliday(DateTime? date) {
     if (date == null) return false;
     return IrishBankHolidays.isBankHoliday(date);
+  }
+
+  // Helper: extract week number from roster name (e.g., "Week 3" or "Week 3 2026")
+  static String? _extractWeekNumber(String? rosterName) {
+    if (rosterName == null) return null;
+    final match = RegExp(r'Week\s+(\d+)').firstMatch(rosterName);
+    return match?.group(1);
   }
 
   // Helper: format break hours as "Xh Ymin" (e.g., "0h 40min" or "1h 30min") for clarity

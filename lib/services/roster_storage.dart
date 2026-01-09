@@ -633,7 +633,10 @@ class RosterStorage {
           if (emp.name.toLowerCase() == employeeName.toLowerCase()) {
             print('✏️  Updating $employeeName in $rosterName');
             emp.customAccumulatedHours = customAccumulatedHours;
-            emp.customHolidayHours = customHolidayHours;
+            // Store custom holiday hours as additive (do not overwrite accumulated)
+            if (customHolidayHours != null) {
+              emp.customHolidayHours = customHolidayHours;
+            }
             updated = true;
             break;
           }

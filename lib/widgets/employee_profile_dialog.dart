@@ -486,6 +486,7 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
                   widget.employee.customHolidayHours = newValue * 0.08;
                 }
               } else {
+                // Store custom holiday hours as an additive adjustment (do not overwrite accumulated)
                 widget.employee.customHolidayHours = newValue;
               }
             });

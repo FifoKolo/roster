@@ -249,6 +249,15 @@ class _RosterPageState extends State<RosterPage> {
   }
 
   void _initWeekDates() {
+    // For week-specific rosters, dates will be set from loaded roster data
+    // For non-week rosters, use current week
+    final weekMatch = RegExp(r'Week\s+(\d+)', caseSensitive: false).hasMatch(widget.rosterName);
+    if (weekMatch) {
+      // Don't initialize dates yet - they'll be set from roster data in _updateWeekDatesFromRoster
+      return;
+    }
+    
+    // Non-week roster: use current week
     final now = TimeService.nowSync();
     final monday = now.subtract(Duration(days: now.weekday - 1));
     for (int i = 0; i < 7; i++) {
@@ -650,6 +659,7 @@ class _RosterPageState extends State<RosterPage> {
       final pdfBytes = await PdfService.buildPublicRosterPdf(
         employeesToUse, 
         weekDates,
+        rosterName: widget.rosterName,
       );
       
       _showPdfPreviewDialog(pdfBytes, 'Staff Schedule Preview', false);
@@ -673,6 +683,7 @@ class _RosterPageState extends State<RosterPage> {
       final pdfBytes = await PdfService.buildPrivateRosterPdf(
         employeesToUse, 
         weekDates,
+        rosterName: widget.rosterName,
       );
       
       _showPdfPreviewDialog(pdfBytes, 'Management Report Preview', true);
