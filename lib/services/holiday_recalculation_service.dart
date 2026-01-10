@@ -70,20 +70,22 @@ class HolidayRecalculationService {
           
           print('  👤 $employeeName: start=${startingBalance.toStringAsFixed(2)} + earned=${earnedThisWeek.toStringAsFixed(2)} - used=${usedThisWeek.toStringAsFixed(2)} = ${endingBalance.toStringAsFixed(2)}');
           
-          // Update the employee's accumulated holiday hours if different
+          // Always update the accumulated balance to match the calculated starting balance
+          // (from previous week's ending balance)
           if ((employee.accumulatedHolidayHours - startingBalance).abs() > 0.01) {
-            employee.accumulatedHolidayHours = startingBalance;
-            employee.customHolidayHours = null; // Clear any custom overrides
-            rosterModified = true;
+            print('    ✏️  Updated accumulated: ${employee.accumulatedHolidayHours.toStringAsFixed(2)} → ${startingBalance.toStringAsFixed(2)}');
             employeesUpdated++;
-            print('    ✏️  Updated accumulated holiday hours from ${employee.accumulatedHolidayHours.toStringAsFixed(2)} to ${startingBalance.toStringAsFixed(2)}');
           }
+          
+          employee.accumulatedHolidayHours = startingBalance;
+          employee.customHolidayHours = null; // Clear any custom overrides
+          rosterModified = true;
           
           // Store the ending balance for the next week
           employeeHolidayBalance[employeeName] = endingBalance;
         }
         
-        // Save the roster if modified
+        // Always save the roster to persist the corrected balances
         if (rosterModified) {
           await RosterStorage.saveRoster(rosterName, employees);
           print('  ✅ Saved updated roster');
