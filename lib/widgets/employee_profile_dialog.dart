@@ -757,8 +757,10 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
     if (result != true || !mounted) return;
     widget.onEmployeeUpdated?.call();
 
-    // After saving, offer to apply to future weeks
-    _showApplyForwardDialog(title, isBaseHours);
+    // After saving, offer to apply to future weeks (only for base hours, not holiday hours)
+    if (isBaseHours) {
+      _showApplyForwardDialog(title, isBaseHours);
+    }
   }
 
   Future<void> _showApplyForwardDialog(String fieldTitle, bool isBase) async {

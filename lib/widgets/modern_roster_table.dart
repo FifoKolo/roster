@@ -1840,6 +1840,10 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     print('🧹 Creating fresh roster for week: $newWeekKey');
 
     try {
+      // CRITICAL: Save current roster first to ensure accumulated values are up-to-date
+      await _saveToRosterStorage();
+      print('💾 Saved current roster before creating new week');
+      
       // Parse the correct dates for the new week
       DateTime mondayDate;
       DateTime sundayDate;
@@ -1969,6 +1973,10 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     print('📋 Copying entire roster to week: $newWeekKey');
 
     try {
+      // CRITICAL: Save current roster first to ensure accumulated values are up-to-date
+      await _saveToRosterStorage();
+      print('💾 Saved current roster before copying');
+      
       // Parse the correct dates for the new week
       DateTime? mondayDate;
       DateTime? sundayDate;
