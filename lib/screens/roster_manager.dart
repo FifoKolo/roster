@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/employee_model.dart';
 import 'adaptive_roster_page.dart';
 import '../services/roster_storage.dart';
+import '../services/holiday_recalculation_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class RosterManager extends StatefulWidget {
@@ -18,6 +19,7 @@ class _RosterManagerState extends State<RosterManager> {
   void initState() {
     super.initState();
     _loadRosters();
+    _recalculateHolidaysOnStartup();
   }
 
   Future<void> _loadRosters() async {
@@ -598,6 +600,118 @@ class _RosterManagerState extends State<RosterManager> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _recalculateHolidaysOnStartup() async {
+    // Run silently in the background on app startup
+    try {
+      print('🔄 Auto-recalculating holiday hours on startup...');
+      final result = await HolidayRecalculationService.recalculateAllWeeks();
+      if (result['success']) {
+        print('✅ Auto-recalculation complete: ${result['weeksProcessed']} weeks, ${result['employeesUpdated']} records updated');
+      } else {
+        print('⚠️ Auto-recalculation had issues: ${result['message']}');
+      }
+    } catch (e) {
+      print('❌ Error during auto-recalculation: $e');
+      // Silently fail - don't interrupt the user experience
+    }
+  }
+
+  Future<void> _recalculateAllHolidays() async {
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.auto_fix_high, color: Colors.blue.shade600),
+            const SizedBox(width: 8),
+            const Text('Recalculate Holiday Hours'),
+          ],
+        ),
+        content: const Text(
+          'This will scan all your weekly rosters and recalculate accumulated holiday hours in the correct order.\n\n'
+          'This fixes any weeks that have incorrect holiday balances.\n\n'
+          'This operation may take a few moments.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Recalculate'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    // Show progress dialog
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Recalculating holiday hours...'),
+          ],
+        ),
+      ),
+    );
+
+    // Run recalculation
+    final result = await HolidayRecalculationService.recalculateAllWeeks();
+
+    // Close progress dialog
+    if (mounted) Navigator.pop(context);
+
+    // Show result
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              result['success'] ? Icons.check_circle : Icons.error,
+              color: result['success'] ? Colors.green : Colors.red,
+            ),
+            const SizedBox(width: 8),
+            Text(result['success'] ? 'Success!' : 'Error'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(result['message']),
+            if (result['success']) ..[
+              const SizedBox(height: 12),
+              Text('Weeks processed: ${result['weeksProcessed']}'),
+              Text('Records updated: ${result['employeesUpdated']}'),
+            ],
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }
