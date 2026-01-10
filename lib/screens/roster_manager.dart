@@ -699,7 +699,7 @@ class _RosterManagerState extends State<RosterManager> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(result['message']),
-            if (result['success']) ..[
+            if (result['success']) ...[
               const SizedBox(height: 12),
               Text('Weeks processed: ${result['weeksProcessed']}'),
               Text('Records updated: ${result['employeesUpdated']}'),

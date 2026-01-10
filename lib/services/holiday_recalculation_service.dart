@@ -9,7 +9,7 @@ class HolidayRecalculationService {
     
     try {
       // Get all roster names
-      final allRosters = await RosterStorage.getAllRosterNames();
+      final allRosters = await RosterStorage.watchRosterNames().first;
       
       // Filter and sort week rosters (Week 1, Week 2, etc.)
       final weekRosters = allRosters
