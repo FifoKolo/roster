@@ -61,10 +61,37 @@ class RosterStorage {
   static final Map<String, StreamController<List<Employee>>> _rosterCtrls = {};
   static bool _namesSeeded = false;
 
+  /// Recover roster names from stored roster_* keys if the name list was cleared.
+  /// This is a safety net so existing rosters are rediscovered even if
+  /// `roster_names` was wiped (e.g., cache reset or older builds).
+  static Future<int> recoverRosterNamesIfMissing() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final saved = prefs.getStringList('roster_names') ?? <String>[];
+    final keys = prefs.getKeys();
+    final derived = keys
+        .where((k) => k.startsWith('roster_'))
+        .map((k) => k.substring('roster_'.length))
+        .where((n) => n.isNotEmpty)
+        .toSet();
+
+    // Merge saved + derived, keeping everything unique and sorted
+    final merged = <String>{...saved, ...derived}.toList()..sort();
+    final added = merged.length - saved.length;
+
+    if (added > 0) {
+      await _saveLocalRosterNames(merged);
+      print('✅ Recovered $added roster(s) from stored data');
+    }
+
+    return added;
+  }
+
   static void _seedNamesOnce() {
     if (_namesSeeded) return;
     _namesSeeded = true;
-    _loadLocalRosterNames().then((names) {
+    recoverRosterNamesIfMissing().then((_) async {
+      final names = await _loadLocalRosterNames();
       if (!_namesCtrl.isClosed) _namesCtrl.add(names);
     });
   }

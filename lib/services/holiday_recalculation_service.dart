@@ -8,6 +8,9 @@ class HolidayRecalculationService {
     print('🔄 Starting holiday recalculation for all weeks...');
     
     try {
+      // Recover roster list in case names were cleared but data still exists
+      await RosterStorage.recoverRosterNamesIfMissing();
+
       // Get all roster names
       final allRosters = await RosterStorage.watchRosterNames().first;
       
