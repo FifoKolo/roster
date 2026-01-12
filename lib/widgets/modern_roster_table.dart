@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/employee_model.dart';
 import '../services/irish_bank_holidays.dart';
@@ -54,6 +55,11 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
 
   // Clipboard state for copy/paste functionality
   Shift? _clipboardShift;
+
+  // Quick copy mode state
+  bool _copyModeActive = false;
+  Shift? _copiedShift;
+  final Set<String> _selectedCellsForPaste = {}; // Format: "employeeName|day"
 
   // Color scheme matching original app (white and blue theme)
   // Theme colors - using centralized AppTheme
@@ -346,22 +352,28 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     final isMobile = ResponsiveHelper.isMobile(context);
     final screenWidth = MediaQuery.of(context).size.width;
     
-    return Container(
-      width: isMobile ? null : screenWidth, // Let mobile scroll, constrain desktop
-      decoration: BoxDecoration(
-        color: _lightGray,
-        borderRadius: BorderRadius.circular(isMobile ? 8 : 12),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildHeader(),
-          _buildWeekNavigation(),
-          _buildDayHeaders(),
-          _buildRosterContent(),
-        ],
-      ),
+    return Stack(
+      children: [
+        Container(
+          width: isMobile ? null : screenWidth, // Let mobile scroll, constrain desktop
+          decoration: BoxDecoration(
+            color: _lightGray,
+            borderRadius: BorderRadius.circular(isMobile ? 8 : 12),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildHeader(),
+              _buildWeekNavigation(),
+              _buildDayHeaders(),
+              _buildRosterContent(),
+            ],
+          ),
+        ),
+        // Copy mode action bar
+        if (_copyModeActive) _buildCopyModeActionBar(),
+      ],
     );
   }
 
@@ -943,148 +955,183 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     );
   }
 
-  Widget _buildShiftCell(Employee employee, String day, Shift? shift) {
-    if (shift != null) {
-      // Existing shift - make it draggable
-      return Draggable<Map<String, dynamic>>(
-        data: {
-          'shift': shift,
-          'sourceEmployee': employee.name,
-          'sourceDay': day,
+  void _confirmDeleteShift(Employee employee, String day, Shift shift) {
+    showDialog(
+      context: context,
+      builder: (context) => Shortcuts(
+        shortcuts: <LogicalKeySet, Intent>{
+          LogicalKeySet(LogicalKeyboardKey.enter): const ActivateIntent(),
+          LogicalKeySet(LogicalKeyboardKey.numpadEnter): const ActivateIntent(),
         },
-        feedback: Material(
-          elevation: 8,
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            width: 120,
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: _getShiftCellColor(shift).withOpacity(0.9),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: _primaryBlue, width: 2),
+        child: Actions(
+          actions: <Type, Action<Intent>>{
+            ActivateIntent: CallbackAction<ActivateIntent>(
+              onInvoke: (intent) {
+                Navigator.of(context).pop();
+                _deleteShift(employee, day, shift);
+                return null;
+              },
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.drag_handle, color: _primaryBlue, size: 16),
-                const SizedBox(height: 4),
-                _buildShiftContent(shift),
+          },
+          child: Focus(
+            autofocus: true,
+            child: AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.delete, color: Colors.red, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Delete Shift',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Are you sure you want to delete this shift?',
+                    style: TextStyle(fontSize: 16, color: _darkGray),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.withOpacity(0.2)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${employee.name} - $day',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.red,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          shift.isHoliday
+                              ? 'Holiday'
+                              : shift.startTime != null && shift.endTime != null
+                                  ? '${_formatTime(shift.startTime!)} - ${_formatTime(shift.endTime!)}'
+                                  : 'Shift',
+                          style: TextStyle(color: _darkGray),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'This action cannot be undone.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.red.shade700,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _deleteShift(employee, day, shift);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Delete'),
+                ),
               ],
             ),
           ),
         ),
-        childWhenDragging: Container(
-          padding: const EdgeInsets.all(16),
-          margin: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade200,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-                color: Colors.grey.shade400, style: BorderStyle.solid),
-          ),
-          child: Center(
-            child: Text(
-              'Moving...',
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
+      ),
+    );
+  }
+  
+  // Builds a shift cell, handling both empty cells and populated shifts
+  Widget _buildShiftCell(Employee employee, String day, Shift? shift) {
+    if (shift != null) {
+      return _buildInteractiveShiftCell(employee, day, shift);
+    }
+
+    final cellKey = '${employee.name}|$day';
+    final isSelected = _selectedCellsForPaste.contains(cellKey);
+
+    return GestureDetector(
+      onTap: () {
+        if (_copyModeActive) {
+          _toggleCellSelection(employee.name, day);
+        } else {
+          _editShift(employee, day, null);
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        margin: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? _primaryBlue : _darkGray.withOpacity(0.2),
+            width: isSelected ? 2.5 : 0.5,
           ),
         ),
-        child: _buildInteractiveShiftCell(employee, day, shift),
-      );
-    } else {
-      // Empty cell - make it a drop target
-      return DragTarget<Map<String, dynamic>>(
-        onWillAcceptWithDetails: (details) => details.data['shift'] != null,
-        onAcceptWithDetails: (details) {
-          final data = details.data;
-          final draggedShift = data['shift'] as Shift;
-          final sourceEmployee = data['sourceEmployee'] as String;
-          final sourceDay = data['sourceDay'] as String;
-
-          _moveShift(
-              sourceEmployee, sourceDay, employee.name, day, draggedShift);
-        },
-        builder: (context, candidateData, rejectedData) {
-          final isHovering = candidateData.isNotEmpty;
-          final isMobile = ResponsiveHelper.isMobile(context);
-
-          return GestureDetector(
-            onTap: () => _addShiftToCell(employee, day),
-            child: Container(
-              padding: EdgeInsets.all(isMobile ? 12 : 16),
-              margin: EdgeInsets.all(isMobile ? 2 : 4),
-              constraints: isMobile 
-                ? const BoxConstraints(minHeight: 60, minWidth: 80)
-                : const BoxConstraints(minHeight: 80),
-              decoration: BoxDecoration(
-                color: isHovering
-                    ? _primaryBlue.withOpacity(0.1)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(isMobile ? 6 : 8),
-                border: Border.all(
-                  color: isHovering
-                      ? _primaryBlue
-                      : _hasClipboard()
-                          ? _primaryBlue.withOpacity(0.5)
-                          : _darkGray.withOpacity(0.2),
-                  width: isHovering ? 2 : (_hasClipboard() ? 2 : 0.5),
-                ),
-              ),
-              child: Stack(
-                children: [
-                  _buildShiftContent(shift),
-                  if (isHovering)
-                    Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: _primaryBlue.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Center(
-                          child: Icon(
-                            Icons.add_circle,
-                            color: _primaryBlue,
-                            size: 24,
-                          ),
-                        ),
-                      ),
-                    ),
-                  // Add visual indicator for empty cells when clipboard has data
-                  if (_hasClipboard() && shift == null && !isHovering)
-                    Positioned(
-                      top: 2,
-                      right: 2,
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: _primaryBlue,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ),
-                  // Add visual indicator for clickable empty cells
-                  if (shift == null && !_hasClipboard() && !isHovering)
-                    Positioned(
-                      bottom: 2,
-                      right: 2,
-                      child: Icon(
-                        Icons.add_circle_outline,
-                        size: 16,
-                        color: _darkGray.withOpacity(0.5),
-                      ),
-                    ),
-                ],
+        child: Stack(
+          children: [
+            Center(
+              child: Icon(
+                Icons.add_circle,
+                color: _primaryBlue,
+                size: 24,
               ),
             ),
-          );
-        },
-      );
-    }
+            if (_hasClipboard())
+              Positioned(
+                top: 2,
+                right: 2,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: _primaryBlue,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+            if (!_hasClipboard())
+              Positioned(
+                bottom: 2,
+                right: 2,
+                child: Icon(
+                  Icons.add_circle_outline,
+                  size: 16,
+                  color: _darkGray.withOpacity(0.5),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   Color _getShiftCellColor(Shift? shift) {
@@ -1195,24 +1242,39 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   // Interactive shift cell with hover effects and quick actions
   Widget _buildInteractiveShiftCell(
       Employee employee, String day, Shift shift) {
+    final cellKey = '${employee.name}|$day';
+    final isSelected = _selectedCellsForPaste.contains(cellKey);
+    
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: Builder(
         builder: (context) {
           return GestureDetector(
-            onTap: () => _editShift(employee, day, shift),
+            onTap: () {
+              if (_copyModeActive) {
+                _toggleCellSelection(employee.name, day);
+              } else {
+                _editShift(employee, day, shift);
+              }
+            },
             onLongPress: () => _showQuickActions(context, employee, day, shift),
             child: Tooltip(
-              message: 'Click to edit • Long press for options',
+              message: _copyModeActive 
+                  ? 'Click to select for paste' 
+                  : 'Click to edit • Long press for options',
               child: Container(
                 padding: const EdgeInsets.all(16),
                 margin: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: _getShiftCellColor(shift),
+                  color: isSelected 
+                      ? _primaryBlue.withOpacity(0.3) 
+                      : _getShiftCellColor(shift),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: _darkGray.withOpacity(0.2),
-                    width: 0.5,
+                    color: isSelected 
+                        ? _primaryBlue 
+                        : _darkGray.withOpacity(0.2),
+                    width: isSelected ? 2.5 : 0.5,
                   ),
                 ),
                 child: Stack(
@@ -1226,10 +1288,9 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           _buildQuickActionButton(
-                            icon: Icons.copy,
-                            onTap: () =>
-                                _copyShiftToClipboard(employee, day, shift),
-                            tooltip: 'Copy',
+                            icon: Icons.content_copy,
+                            onTap: () => _activateCopyMode(shift),
+                            tooltip: 'Quick Copy',
                           ),
                           const SizedBox(width: 2),
                           _buildQuickActionButton(
@@ -1401,98 +1462,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     );
   }
 
-  void _confirmDeleteShift(Employee employee, String day, Shift shift) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.delete, color: Colors.red, size: 20),
-            ),
-            const SizedBox(width: 12),
-            const Text(
-              'Delete Shift',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Are you sure you want to delete this shift?',
-              style: TextStyle(fontSize: 16, color: _darkGray),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.red.withOpacity(0.2)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${employee.name} - $day',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: Colors.red,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    shift.isHoliday
-                        ? 'Holiday'
-                        : shift.startTime != null && shift.endTime != null
-                            ? '${_formatTime(shift.startTime!)} - ${_formatTime(shift.endTime!)}'
-                            : 'Shift',
-                    style: TextStyle(color: _darkGray),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'This action cannot be undone.',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.red.shade700,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _deleteShift(employee, day, shift);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
+  
 
   void _deleteShift(Employee employee, String day, Shift shift) {
     setState(() {
@@ -1587,6 +1557,90 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       widget.onRosterChanged(employeeList);
       _notifyCurrentWeekDataChanged();
     }
+  }
+
+  // Quick Copy Mode Methods
+  void _activateCopyMode(Shift shift) {
+    setState(() {
+      _copyModeActive = true;
+      _copiedShift = Shift.fromJson(shift.toJson()); // Deep copy
+      _selectedCellsForPaste.clear();
+    });
+  }
+
+  void _toggleCellSelection(String employeeName, String day) {
+    setState(() {
+      final cellKey = '$employeeName|$day';
+      if (_selectedCellsForPaste.contains(cellKey)) {
+        _selectedCellsForPaste.remove(cellKey);
+      } else {
+        _selectedCellsForPaste.add(cellKey);
+      }
+    });
+  }
+
+  void _cancelCopyMode() {
+    setState(() {
+      _copyModeActive = false;
+      _copiedShift = null;
+      _selectedCellsForPaste.clear();
+    });
+  }
+
+  Future<void> _applyCopyMode() async {
+    if (_copiedShift == null || _selectedCellsForPaste.isEmpty) return;
+
+    final employeeList = _getEmployeeList();
+    int appliedCount = 0;
+    // int skippedCount = 0; // no longer used
+
+    setState(() {
+      for (final cellKey in _selectedCellsForPaste) {
+        final parts = cellKey.split('|');
+        if (parts.length != 2) continue;
+        
+        final employeeName = parts[0];
+        final day = parts[1];
+        
+        final employee = employeeList.firstWhere(
+          (e) => e.name == employeeName,
+          orElse: () => employeeList.first,
+        );
+        
+        if (employee.name == employeeName) {
+          // Create deep copy of the shift
+          final shiftCopy = Shift.fromJson(_copiedShift!.toJson());
+          employee.shifts[day] = shiftCopy;
+          appliedCount++;
+        }
+      }
+      
+      // Reset copy mode
+      _copyModeActive = false;
+      _copiedShift = null;
+      _selectedCellsForPaste.clear();
+    });
+
+    // Save and notify
+    _saveCurrentWeekData();
+    widget.onRosterChanged(employeeList);
+    _notifyCurrentWeekDataChanged();
+
+    // Show success message
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.white, size: 20),
+            const SizedBox(width: 12),
+            Text('Applied shift to $appliedCount cell${appliedCount != 1 ? 's' : ''}'),
+          ],
+        ),
+        backgroundColor: Colors.green.shade600,
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   // Helper methods
@@ -1705,132 +1759,152 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       String newWeekKey, Map<String, Map<String, Shift>> currentWeekShifts) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: _primaryBlue.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(Icons.calendar_month, color: _primaryBlue, size: 20),
+      builder: (context) => Shortcuts(
+        shortcuts: <LogicalKeySet, Intent>{
+          LogicalKeySet(LogicalKeyboardKey.enter): const ActivateIntent(),
+          LogicalKeySet(LogicalKeyboardKey.numpadEnter): const ActivateIntent(),
+        },
+        child: Actions(
+          actions: <Type, Action<Intent>>{
+            ActivateIntent: CallbackAction<ActivateIntent>(
+              onInvoke: (intent) {
+                Navigator.of(context).pop();
+                _copyEntireRoster(newWeekKey, currentWeekShifts);
+                return null;
+              },
             ),
-            const SizedBox(width: 12),
-            const Text(
-              'Moving to New Week',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'How would you like to set up the new week?',
-              style: TextStyle(fontSize: 16, color: _darkGray),
-            ),
-            const SizedBox(height: 16),
-
-            // Option 1: Fresh clean roster
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green.withOpacity(0.3)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          },
+          child: Focus(
+            autofocus: true,
+            child: AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
                 children: [
-                  Row(
-                    children: [
-                      Icon(Icons.cleaning_services,
-                          color: Colors.green, size: 16),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Fresh Clean Roster',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: Colors.green.shade700,
-                        ),
-                      ),
-                    ],
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: _primaryBlue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.calendar_month, color: _primaryBlue, size: 20),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Keep only staff names, start with empty schedule. Perfect for creating a completely new roster.',
-                    style: TextStyle(color: _darkGray, fontSize: 12),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Moving to New Week',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Option 2: Copy entire roster
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _primaryBlue.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _primaryBlue.withOpacity(0.3)),
-              ),
-              child: Column(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Icon(Icons.copy_all, color: _primaryBlue, size: 16),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Copy Entire Roster',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: _primaryBlue,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
                   Text(
-                    'Copy all staff and their complete schedules. Great for repeating similar weekly patterns.',
-                    style: TextStyle(color: _darkGray, fontSize: 12),
+                    'How would you like to set up the new week?',
+                    style: TextStyle(fontSize: 16, color: _darkGray),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Option 1: Fresh clean roster
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green.withOpacity(0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.cleaning_services,
+                                color: Colors.green, size: 16),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Fresh Clean Roster',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.green.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Keep only staff names, start with empty schedule. Perfect for creating a completely new roster.',
+                          style: TextStyle(color: _darkGray, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Option 2: Copy entire roster
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: _primaryBlue.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: _primaryBlue.withOpacity(0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.copy_all, color: _primaryBlue, size: 16),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Copy Entire Roster',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: _primaryBlue,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Copy all staff and their complete schedules. Great for repeating similar weekly patterns.',
+                          style: TextStyle(color: _darkGray, fontSize: 12),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    // Create fresh roster with only staff names
+                    _createFreshRoster(newWeekKey);
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.green.shade700,
+                  ),
+                  child: const Text('Fresh Clean'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    // Copy entire roster with all shifts
+                    _copyEntireRoster(newWeekKey, currentWeekShifts);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _primaryBlue,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Copy All'),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              // Create fresh roster with only staff names
-              _createFreshRoster(newWeekKey);
-            },
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.green.shade700,
-            ),
-            child: const Text('Fresh Clean'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              // Copy entire roster with all shifts
-              _copyEntireRoster(newWeekKey, currentWeekShifts);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _primaryBlue,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Copy All'),
-          ),
-        ],
       ),
     );
   }
@@ -1902,6 +1976,11 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         
         // Holiday hours: use the remaining balance from this week as the starting point for next week
         // This ensures holidays are properly deducted and earned hours are accumulated
+        // remainingAccumulatedHolidayHours already includes:
+        // - base accumulated holiday hours
+        // - customHolidayHours as an additive adjustment (if set)
+        // - holiday hours earned this week (8% of paid hours)
+        // - minus holiday hours used this week
         final carryHoliday = employee.remainingAccumulatedHolidayHours.clamp(0.0, double.infinity);
 
         final newEmployee = Employee(
@@ -2030,14 +2109,16 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
 
         // Carry-forward accumulated values to next week (respect custom overrides)
         final baseAccumWorked = employee.customAccumulatedHours ?? employee.accumulatedWorkedHours;
-        final baseHoliday = employee.customHolidayHours ?? employee.accumulatedHolidayHours;
         final carryAccumWorked = baseAccumWorked + employee.totalWorkedHours;
         final carryAccumTotal = employee.accumulatedTotalHours + employee.totalWorkedHours;
         
-        // If custom holiday is set, don't add earned hours (custom is the baseline)
-        // If not custom, add earned hours and subtract used
-        final earnedHolidayThisWeek = employee.customHolidayHours != null ? 0.0 : employee.holidayHoursEarnedThisWeek;
-        final carryHoliday = (baseHoliday + earnedHolidayThisWeek - employee.totalHolidayHoursUsed).clamp(0.0, double.infinity);
+        // Holiday hours: use the same calculation as Fresh Roster for consistency
+        // remainingAccumulatedHolidayHours already includes:
+        // - base accumulated holiday hours
+        // - customHolidayHours as an additive adjustment (if set)
+        // - holiday hours earned this week (8% of paid hours)
+        // - minus holiday hours used this week
+        final carryHoliday = employee.remainingAccumulatedHolidayHours.clamp(0.0, double.infinity);
 
         final newEmployee = Employee(
           name: employee.name,
@@ -2242,13 +2323,31 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
+        return Shortcuts(
+          shortcuts: <LogicalKeySet, Intent>{
+            LogicalKeySet(LogicalKeyboardKey.enter): const ActivateIntent(),
+            LogicalKeySet(LogicalKeyboardKey.numpadEnter): const ActivateIntent(),
+          },
+          child: Actions(
+            actions: <Type, Action<Intent>>{
+              ActivateIntent: CallbackAction<ActivateIntent>(
+                onInvoke: (intent) {
+                  _addStaffMember(nameController.text.trim());
+                  return null;
+                },
+              ),
+            },
+            child: Focus(
+              autofocus: true,
+              child: AlertDialog(
           title: Text('Add Staff Member'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: nameController,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _addStaffMember(nameController.text.trim()),
                 decoration: InputDecoration(
                   labelText: 'Staff Name',
                   border: OutlineInputBorder(),
@@ -2271,6 +2370,9 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
               child: Text('Add'),
             ),
           ],
+              ),
+            ),
+          ),
         );
       },
     );
@@ -2450,5 +2552,91 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     } catch (e) {
       print('Staff Management: Error removing from future weeks: $e');
     }
+  }
+
+  Widget _buildCopyModeActionBar() {
+    return Positioned(
+      top: 20,
+      right: 20,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Info badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(6),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.content_copy, color: _primaryBlue, size: 16),
+                const SizedBox(width: 8),
+                Text(
+                  '${_selectedCellsForPaste.length} selected',
+                  style: TextStyle(
+                    color: _darkGray,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Cancel button
+          Material(
+            elevation: 2,
+            borderRadius: BorderRadius.circular(6),
+            child: InkWell(
+              onTap: _cancelCopyMode,
+              borderRadius: BorderRadius.circular(6),
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(Icons.close, size: 20, color: Colors.red.shade600),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Apply button
+          Material(
+            elevation: 2,
+            borderRadius: BorderRadius.circular(6),
+            child: InkWell(
+              onTap: _selectedCellsForPaste.isEmpty ? null : _applyCopyMode,
+              borderRadius: BorderRadius.circular(6),
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: _selectedCellsForPaste.isEmpty 
+                      ? Colors.grey.shade300 
+                      : Colors.green.shade600,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(
+                  Icons.check, 
+                  size: 20, 
+                  color: _selectedCellsForPaste.isEmpty 
+                      ? Colors.grey.shade500 
+                      : Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
