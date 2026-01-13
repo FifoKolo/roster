@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/employee_model.dart';
 import '../utils/responsive_helper.dart';
 
@@ -12,6 +13,7 @@ class AddShiftDialog extends StatefulWidget {
 }
 
 class _AddShiftDialogState extends State<AddShiftDialog> {
+  bool _isFormattingTime = false;
   TimeOfDay? startTime;
   TimeOfDay? endTime;
   bool isHoliday = false;
@@ -103,31 +105,52 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
   }
 
   void _updateTimeFromInput(String input, bool isStartTime) {
-    // Auto-format: add colon when user types 2 digits
-    if (input.length == 2 && !input.contains(':')) {
-      final controller = isStartTime ? startTimeController : endTimeController;
-      final formattedInput = '$input:';
-      controller.value = TextEditingValue(
-        text: formattedInput,
-        selection: TextSelection.collapsed(offset: formattedInput.length),
-      );
-      return; // Don't parse yet, let user finish typing
+    if (_isFormattingTime) return;
+
+    final controller = isStartTime ? startTimeController : endTimeController;
+
+    // Normalize to digits only and rebuild with colon after HH
+    final digitsOnly = input.replaceAll(RegExp(r'[^0-9]'), '');
+    final limited = digitsOnly.length > 4 ? digitsOnly.substring(0, 4) : digitsOnly;
+
+    String formatted;
+    if (limited.length >= 3) {
+      formatted = '${limited.substring(0, 2)}:${limited.substring(2)}';
+    } else {
+      formatted = limited;
     }
-    
-    // Auto-advance: when user completes time format, move to next field
-    if (input.length >= 5 && input.contains(':')) {
-      final time = _parseTimeInput(input);
+
+    // If end time is being cleared, hop focus back to start time for quick re-entry
+    if (!isStartTime && formatted.isEmpty) {
+      _isFormattingTime = true;
+      controller.clear();
+      _isFormattingTime = false;
+      setState(() => endTime = null);
+      Future.delayed(const Duration(milliseconds: 80), () {
+        startTimeFocus.requestFocus();
+      });
+      return;
+    }
+
+    _isFormattingTime = true;
+    controller.value = TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+    _isFormattingTime = false;
+
+    // Auto-advance: when user completes time format, move focus
+    if (formatted.length >= 5 && formatted.contains(':')) {
+      final time = _parseTimeInput(formatted);
       if (time != null) {
         setState(() {
           if (isStartTime) {
             startTime = time;
-            // Auto-focus to end time field
             Future.delayed(const Duration(milliseconds: 100), () {
               endTimeFocus.requestFocus();
             });
           } else {
             endTime = time;
-            // Auto-focus away from time fields when both are complete
             Future.delayed(const Duration(milliseconds: 100), () {
               FocusScope.of(context).unfocus();
             });
@@ -135,8 +158,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
         });
       }
     } else {
-      // Try to parse partial input
-      final time = _parseTimeInput(input);
+      final time = _parseTimeInput(formatted);
       if (time != null) {
         setState(() {
           if (isStartTime) {
@@ -174,6 +196,23 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
     // Initialize focus nodes
     startTimeFocus = FocusNode();
     endTimeFocus = FocusNode();
+
+    // Keep cursor at end on focus so the whole time is not highlighted
+    startTimeFocus.addListener(() {
+      if (startTimeFocus.hasFocus) {
+        final text = startTimeController.text;
+        startTimeController.selection =
+            TextSelection.collapsed(offset: text.length);
+      }
+    });
+
+    endTimeFocus.addListener(() {
+      if (endTimeFocus.hasFocus) {
+        final text = endTimeController.text;
+        endTimeController.selection =
+            TextSelection.collapsed(offset: text.length);
+      }
+    });
 
     // Update UI validation state when text changes
     roleController.addListener(() => setState(() {}));
@@ -1046,7 +1085,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                             enablePaidBreak: enablePaidBreak,
                             customBreakMinutes: customBreakController.text.trim().isEmpty
                                 ? null
-                                : double.tryParse(customBreakController.text), // NEW: custom break in minutes
+                                : double.tryParse(customBreakController.text),
                           ),
                         );
                       }

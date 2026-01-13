@@ -1089,7 +1089,9 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         padding: const EdgeInsets.all(16),
         margin: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: Colors.transparent,
+          color: isSelected 
+              ? _primaryBlue.withOpacity(0.2)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected ? _primaryBlue : _darkGray.withOpacity(0.2),
@@ -1105,7 +1107,8 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                 size: 24,
               ),
             ),
-            if (_hasClipboard())
+            // Show blue dot when in copy mode (visual feedback that this cell can be selected)
+            if (_copyModeActive)
               Positioned(
                 top: 2,
                 right: 2,
@@ -1118,7 +1121,8 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                   ),
                 ),
               ),
-            if (!_hasClipboard())
+            // Show outline icon when NOT in copy mode (visual hint for adding shifts)
+            if (!_copyModeActive)
               Positioned(
                 bottom: 2,
                 right: 2,
