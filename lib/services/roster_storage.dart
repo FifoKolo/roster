@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/employee_model.dart';
+import 'firestore_service.dart';
 
 /// Represents a roster that has been moved to trash
 class TrashItem {
@@ -54,7 +55,10 @@ class TrashItem {
 }
 
 class RosterStorage {
-  // Local-only mode - no cloud configuration needed
+  // Cloud + local hybrid
+  static final FirestoreService _cloud = FirestoreService();
+  static bool _useCloud = false;
+  static String? _uid;
 
   // Local stream controllers (live updates in local mode)
   static final _namesCtrl = StreamController<List<String>>.broadcast();
@@ -131,27 +135,27 @@ class RosterStorage {
 
   /// Call this after auth changes. No-op in local-only mode.
   static Future<void> configureCloud(String? uid, {String? email, String? displayName}) async {
-    // Local-only mode - no configuration needed
-    // This method is kept for API compatibility
+    _uid = uid;
+    _useCloud = uid != null && uid.isNotEmpty;
+    _cloud.configure(uid);
+    if (!_useCloud) {
+      // Seed local streams when returning to local mode
+      _seedNamesOnce();
+    }
   }
 
   /// Stream roster names (cloud) or local live stream
   static Stream<List<String>> watchRosterNames() {
-    // FORCE LOCAL MODE - skip Firebase entirely for performance
+    if (_useCloud && _uid != null) {
+      return _cloud.watchRosterNames().handleError((_) {
+        // Fallback to local stream on error
+        _seedNamesOnce();
+        return <String>[];
+      });
+    }
+
     _seedNamesOnce();
     return _namesCtrl.stream;
-    
-    // Disabled Firebase code:
-    // if (_useCloud && _uid != null) {
-    //   final col = _db.collection('users').doc(_uid).collection('rosters');
-    //   return col.snapshots().map((snap) {
-    //     // Use doc IDs as names
-    //     final names = snap.docs.map((d) => d.id).toList()..sort();
-    //     return names;
-    //   });
-    // }
-    // _seedNamesOnce();
-    // return _namesCtrl.stream;
   }
 
   static Future<List<String>> _loadLocalRosterNames() async {
@@ -167,7 +171,19 @@ class RosterStorage {
 
   /// Create roster (cloud or local)
   static Future<void> createRoster(String rosterName, List<Employee> initialEmployees) async {
-    // FORCE LOCAL MODE - skip Firebase entirely for performance
+    // Cloud first
+    if (_useCloud && _uid != null) {
+      try {
+        await _cloud.createRoster(rosterName);
+        if (initialEmployees.isNotEmpty) {
+          await _cloud.saveRoster(rosterName, initialEmployees);
+        }
+      } catch (e) {
+        print('⚠️ Cloud createRoster failed, falling back to local: $e');
+      }
+    }
+
+    // Always keep local backup
     final names = await _loadLocalRosterNames();
     if (!names.contains(rosterName)) {
       names.add(rosterName);
@@ -176,22 +192,6 @@ class RosterStorage {
     }
     await _saveLocalRoster(rosterName, initialEmployees);
     if (!_namesCtrl.isClosed) _namesCtrl.add(names);
-    
-    // Disabled Firebase code:
-    // if (_useCloud && _uid != null) {
-    //   try {
-    //     await _rosterDoc(rosterName).set({
-    //       'name': rosterName,
-    //       'createdAt': FieldValue.serverTimestamp(),
-    //       'employees': initialEmployees.map((e) => e.toJson()).toList(),
-    //       'style': null,
-    //     }, SetOptions(merge: true));
-    //     return;
-    //   } catch (_) {
-    //     // Fall through to local on error
-    //   }
-    // }
-    // Local fallback code moved above
   }
 
   static Future<void> deleteRoster(String rosterName) async {
@@ -379,45 +379,30 @@ class RosterStorage {
 
   /// Stream roster employees for live multi-device sync
   static Stream<List<Employee>> watchRoster(String rosterName) {
-    // FORCE LOCAL MODE - skip Firebase entirely for performance
     print('🔍 watchRoster called for: $rosterName');
+    if (_useCloud && _uid != null) {
+      return _cloud.watchRoster(rosterName).handleError((error) {
+        print('⚠️ Cloud watchRoster error, falling back to local: $error');
+        _seedRosterStreamOnce(rosterName);
+        return <Employee>[];
+      });
+    }
+
     _seedRosterStreamOnce(rosterName);
-    
     return _rosterCtrls[rosterName]!.stream;
-    
-    // Disabled Firebase code:
-    // if (_useCloud && _uid != null) {
-    //   return _rosterDoc(rosterName).snapshots().map((doc) {
-    //     final data = doc.data();
-    //     final list = (data?['employees'] as List?) ?? const [];
-    //     return list
-    //         .map((e) => Employee.fromJson(Map<String, dynamic>.from(e as Map)))
-    //         .toList();
-    //   });
-    // }
-    // _seedRosterStreamOnce(rosterName);
-    // return _rosterCtrls[rosterName]!.stream;
   }
 
   /// Load roster (cloud-aware; used by copy-from-previous flow)
   static Future<List<Employee>> loadRoster(String rosterName) async {
-    // FORCE LOCAL MODE - skip Firebase entirely for performance
+    if (_useCloud && _uid != null) {
+      try {
+        final cloud = await _cloud.loadRoster(rosterName);
+        if (cloud.isNotEmpty) return cloud;
+      } catch (e) {
+        print('⚠️ Cloud loadRoster failed, using local: $e');
+      }
+    }
     return _loadLocalRoster(rosterName);
-    
-    // Disabled Firebase code:
-    // if (_useCloud && _uid != null) {
-    //   try {
-    //     final snap = await _rosterDoc(rosterName).get();
-    //     final data = snap.data();
-    //     final list = (data?['employees'] as List?) ?? const [];
-    //     return list
-    //         .map((e) => Employee.fromJson(Map<String, dynamic>.from(e as Map)))
-    //         .toList();
-    //   } catch (_) {
-    //     // fall through to local
-    //   }
-    // }
-    // return _loadLocalRoster(rosterName);
   }
 
   /// Save roster data (cloud or local)
@@ -427,7 +412,15 @@ class RosterStorage {
       print('  - Employee: ${emp.name} with ${emp.shifts.length} shifts');
     }
     
-    // CRITICAL: Save to storage first, then update stream
+    if (_useCloud && _uid != null) {
+      try {
+        await _cloud.saveRoster(rosterName, employees);
+      } catch (e) {
+        print('⚠️ Cloud saveRoster failed, falling back to local: $e');
+      }
+    }
+
+    // Always keep local backup
     await _saveLocalRoster(rosterName, employees);
     
     // Only update the stream if controller exists and is not closed
@@ -451,23 +444,6 @@ class RosterStorage {
     } else {
       print('⚠️ No stream controller available for $rosterName');
     }
-    
-    // Disabled Firebase code:
-    // if (_useCloud && _uid != null) {
-    //   try {
-    //     await _rosterDoc(rosterName).set(
-    //       {
-    //         'employees': employees.map((e) => e.toJson()).toList(),
-    //         'updatedAt': FieldValue.serverTimestamp(),
-    //       },
-    //       SetOptions(merge: true),
-    //     );
-    //     return;
-    //   } catch (_) {
-    //     // Fall through to local on error
-    //   }
-    // }
-    // await _saveLocalRoster(rosterName, employees);
   }
 
   // ---- Local helpers ----
@@ -682,5 +658,61 @@ class RosterStorage {
       print('❌ Error in applyCustomValuesForward: $e');
       return 0;
     }
+  }
+
+  /// One-time helper: upload all local rosters to cloud for the signed-in user.
+  /// Returns a summary with counts of rosters uploaded and any errors.
+  static Future<Map<String, dynamic>> pushAllLocalRostersToCloud({bool overwrite = false}) async {
+    if (!_useCloud || _uid == null) {
+      throw Exception('Not signed in; cannot push rosters to cloud.');
+    }
+
+    final summary = {
+      'uploaded': 0,
+      'skipped': 0,
+      'errors': <String, String>{},
+    };
+
+    final names = await _loadLocalRosterNames();
+    for (final name in names) {
+      try {
+        final employees = await _loadLocalRoster(name);
+        // Skip empty rosters unless overwriting explicitly
+        if (employees.isEmpty && !overwrite) {
+          summary['skipped'] = (summary['skipped'] as int) + 1;
+          continue;
+        }
+
+        if (overwrite) {
+          // Ensure roster exists in cloud; create if missing
+          await _cloud.createRoster(name);
+        } else {
+          // Create if missing, ignore if exists
+          try {
+            await _cloud.createRoster(name);
+          } catch (_) {
+            // likely exists; proceed to save
+          }
+        }
+
+        if (employees.isNotEmpty) {
+          await _cloud.saveRoster(name, employees);
+        }
+
+        // Push style if present
+        try {
+          final style = await loadStyle(name);
+          if (style != null && style.isNotEmpty) {
+            await saveStyle(name, style);
+          }
+        } catch (_) {}
+
+        summary['uploaded'] = (summary['uploaded'] as int) + 1;
+      } catch (e) {
+        (summary['errors'] as Map<String, String>)[name] = e.toString();
+      }
+    }
+
+    return summary;
   }
 }

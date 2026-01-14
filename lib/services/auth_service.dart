@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'roster_storage.dart';
 
 class AuthService {
   AuthService._();
@@ -8,6 +9,25 @@ class AuthService {
 
   Stream<User?> get authState$ => _auth.authStateChanges();
   User? get currentUser => _auth.currentUser;
+
+  /// Initialize auth listener to configure cloud storage when auth state changes
+  void initialize() {
+    _auth.authStateChanges().listen((User? user) {
+      if (user != null) {
+        // User signed in, configure cloud mode
+        RosterStorage.configureCloud(
+          user.uid,
+          email: user.email,
+          displayName: user.displayName,
+        );
+        print('✅ User signed in: ${user.email}');
+      } else {
+        // User signed out, use local-only mode
+        RosterStorage.configureCloud(null);
+        print('📱 User signed out, using local storage');
+      }
+    });
+  }
 
   Future<UserCredential> signIn(String email, String password) async {
     return await _auth.signInWithEmailAndPassword(email: email.trim(), password: password);

@@ -18,8 +18,10 @@
 import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'firebase_options.dart';
 import 'screens/roster_manager.dart';
 import 'services/roster_storage.dart';
 import 'services/auth_service.dart';
@@ -33,18 +35,29 @@ void main() async {
   // Initialize accurate time service (uses NTP for accurate dates)
   await TimeService.initialize();
 
-  // Force local-only mode to bypass Firebase issues for now
-  var localOnly = true;
+  var localOnly = false;
 
   try {
-    // Skip Firebase initialization for now
-    // await Firebase.initializeApp(
-    //   options: DefaultFirebaseOptions.currentPlatform,
-    // );
-  } catch (_) {
-    // Fallback to local-only if Firebase init fails for any reason.
+    // Initialize Firebase
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print('✅ Firebase initialized successfully');
+    
+    // Initialize auth service to listen for auth state changes
+    AuthService.instance.initialize();
+    
+    // Configure Firestore settings for offline support
+    // This is already enabled by default in newer versions of cloud_firestore
+    
+    localOnly = false;
+  } catch (e) {
+    // Fallback to local-only if Firebase init fails
+    print('❌ Firebase initialization failed: $e');
+    print('📱 Running in local-only mode');
     localOnly = true;
   }
+  
   runApp(RosterApp(localOnly: localOnly));
 }
 
@@ -91,10 +104,8 @@ class RosterApp extends StatelessWidget {
           fillColor: AppTheme.surface,
         ),
       ),
-      home: AuthGate(
-        skipAuth: localOnly, // NEW
-        child: const RosterManager(),
-      ),
+      // Go straight to RosterManager (local mode by default)
+      home: const RosterManager(),
     );
   }
 }
@@ -120,7 +131,7 @@ class AuthGate extends StatelessWidget {
         final user = snap.data;
         if (user == null) {
           RosterStorage.configureCloud(null);
-          return const _SignInSignUpPage();
+          return const SignInSignUpPage();
         }
         // Configure cloud and ensure user doc exists
         RosterStorage.configureCloud(
@@ -139,14 +150,14 @@ class AuthGate extends StatelessWidget {
 }
 
 // NEW: Minimal sign in/up page with validation and visibility toggles
-class _SignInSignUpPage extends StatefulWidget {
-  const _SignInSignUpPage();
+class SignInSignUpPage extends StatefulWidget {
+  const SignInSignUpPage({super.key});
 
   @override
-  State<_SignInSignUpPage> createState() => _SignInSignUpPageState();
+  State<SignInSignUpPage> createState() => _SignInSignUpPageState();
 }
 
-class _SignInSignUpPageState extends State<_SignInSignUpPage> {
+class _SignInSignUpPageState extends State<SignInSignUpPage> {
   final emailCtl = TextEditingController();
   final passCtl = TextEditingController();
   final confirmCtl = TextEditingController();
@@ -166,6 +177,8 @@ class _SignInSignUpPageState extends State<_SignInSignUpPage> {
     try {
       if (isLogin) {
         await AuthService.instance.signIn(emailCtl.text, passCtl.text);
+        // Close sign-in page and return to Roster Manager
+        if (mounted) Navigator.pop(context);
       } else {
         await AuthService.instance.signUp(
           emailCtl.text,
@@ -176,6 +189,8 @@ class _SignInSignUpPageState extends State<_SignInSignUpPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Verification email sent')),
           );
+          // Close sign-up page and return to Roster Manager
+          Navigator.pop(context);
         }
       }
     } catch (e) {
@@ -212,35 +227,35 @@ class _SignInSignUpPageState extends State<_SignInSignUpPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: emailCtl, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Email')),
+                TextField(
+                  controller: emailCtl,
+                  keyboardType: TextInputType.emailAddress,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(labelText: 'Email'),
+                ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: passCtl,
-                  decoration: InputDecoration(
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
                     labelText: 'Password (min 6 chars)',
-                    suffixIcon: IconButton(
-                      icon: Icon(showPass ? Icons.visibility_off : Icons.visibility),
-                      onPressed: () => setState(() => showPass = !showPass),
-                    ),
                   ),
-                  obscureText: !showPass,
+                  obscureText: true,
                 ),
                 if (!isLogin) ...[
                   const SizedBox(height: 8),
                   TextField(
                     controller: confirmCtl,
-                    decoration: InputDecoration(
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
                       labelText: 'Confirm Password',
-                      suffixIcon: IconButton(
-                        icon: Icon(showPass2 ? Icons.visibility_off : Icons.visibility),
-                        onPressed: () => setState(() => showPass2 = !showPass2),
-                      ),
                     ),
-                    obscureText: !showPass2,
+                    obscureText: true,
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: nameCtl,
+                    onChanged: (_) => setState(() {}),
                     decoration: const InputDecoration(labelText: 'Name (optional)'),
                   ),
                 ],

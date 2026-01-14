@@ -60,6 +60,11 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   bool _copyModeActive = false;
   Shift? _copiedShift;
   final Set<String> _selectedCellsForPaste = {}; // Format: "employeeName|day"
+  
+  // Move mode state (cut and paste)
+  bool _moveModeActive = false;
+  String? _moveSourceEmployee;
+  String? _moveSourceDay;
 
   // Color scheme matching original app (white and blue theme)
   // Theme colors - using centralized AppTheme
@@ -590,14 +595,11 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         ElevatedButton(
           onPressed: () async {
             print('Previous week button clicked for $prevWeekName');
-            print(
-                'About to get roster names directly from SharedPreferences...');
+            print('Getting roster names from RosterStorage (cloud or local)...');
             try {
-              // Get roster names directly from SharedPreferences instead of stream
-              final prefs = await SharedPreferences.getInstance();
-              final rosterNames =
-                  prefs.getStringList('roster_names') ?? <String>[];
-              print('Got roster names directly: ${rosterNames.join(", ")}');
+              // Use RosterStorage to check both cloud and local storage
+              final rosterNames = await RosterStorage.watchRosterNames().first;
+              print('Got roster names: ${rosterNames.join(", ")}');
               
               // Check for exact match first
               var exists = rosterNames.contains(prevWeekName);
@@ -655,14 +657,11 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         ElevatedButton(
           onPressed: () async {
             print('Next week button clicked for $nextWeekName');
-            print(
-                'About to get roster names directly from SharedPreferences...');
+            print('Getting roster names from RosterStorage (cloud or local)...');
             try {
-              // Get roster names directly from SharedPreferences instead of stream
-              final prefs = await SharedPreferences.getInstance();
-              final rosterNames =
-                  prefs.getStringList('roster_names') ?? <String>[];
-              print('Got roster names directly: ${rosterNames.join(", ")}');
+              // Use RosterStorage to check both cloud and local storage
+              final rosterNames = await RosterStorage.watchRosterNames().first;
+              print('Got roster names: ${rosterNames.join(", ")}');
               
               // Check for exact match first
               var exists = rosterNames.contains(nextWeekName);
@@ -1077,36 +1076,63 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     final cellKey = '${employee.name}|$day';
     final isSelected = _selectedCellsForPaste.contains(cellKey);
 
-    return GestureDetector(
-      onTap: () {
-        if (_copyModeActive) {
-          _toggleCellSelection(employee.name, day);
-        } else {
-          _editShift(employee, day, null);
-        }
+    // Wrap empty cell in DragTarget to accept dropped shifts
+    return DragTarget<Map<String, dynamic>>(
+      onWillAcceptWithDetails: (details) => true,
+      onAcceptWithDetails: (details) {
+        final data = details.data;
+        final sourceEmployee = data['employee'] as Employee;
+        final sourceDay = data['day'] as String;
+        final shift = data['shift'] as Shift;
+        
+        // Move the shift
+        _moveShift(sourceEmployee.name, sourceDay, employee.name, day, shift);
       },
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        margin: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: isSelected 
-              ? _primaryBlue.withOpacity(0.2)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected ? _primaryBlue : _darkGray.withOpacity(0.2),
-            width: isSelected ? 2.5 : 0.5,
-          ),
-        ),
-        child: Stack(
-          children: [
-            Center(
-              child: Icon(
-                Icons.add_circle,
-                color: _primaryBlue,
-                size: 24,
+      builder: (context, candidateData, rejectedData) {
+        final isDragHovering = candidateData.isNotEmpty;
+        
+        return GestureDetector(
+          onTap: () {
+            if (_copyModeActive) {
+              _toggleCellSelection(employee.name, day);
+            } else if (_moveModeActive) {
+              _addShiftToCell(employee, day);
+            } else {
+              _editShift(employee, day, null);
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: isDragHovering
+                  ? Colors.green.withOpacity(0.2)
+                  : isSelected 
+                    ? _primaryBlue.withOpacity(0.2)
+                    : _moveModeActive
+                      ? Colors.orange.withOpacity(0.05)
+                      : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isDragHovering
+                    ? Colors.green
+                    : isSelected 
+                      ? _primaryBlue 
+                      : _moveModeActive 
+                        ? Colors.orange.withOpacity(0.4)
+                        : _darkGray.withOpacity(0.2),
+                width: isDragHovering ? 3 : (isSelected || _moveModeActive ? 2.5 : 0.5),
               ),
             ),
+            child: Stack(
+              children: [
+                Center(
+                  child: Icon(
+                    _moveModeActive ? Icons.paste : Icons.add_circle,
+                    color: _moveModeActive ? Colors.orange : _primaryBlue,
+                    size: 24,
+                  ),
+                ),
             // Show blue dot when in copy mode (visual feedback that this cell can be selected)
             if (_copyModeActive)
               Positioned(
@@ -1134,7 +1160,9 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
               ),
           ],
         ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -1248,72 +1276,170 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       Employee employee, String day, Shift shift) {
     final cellKey = '${employee.name}|$day';
     final isSelected = _selectedCellsForPaste.contains(cellKey);
+    final isBeingMoved = _moveModeActive && 
+                         _moveSourceEmployee == employee.name && 
+                         _moveSourceDay == day;
     
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: Builder(
-        builder: (context) {
-          return GestureDetector(
-            onTap: () {
-              if (_copyModeActive) {
-                _toggleCellSelection(employee.name, day);
-              } else {
-                _editShift(employee, day, shift);
-              }
-            },
-            onLongPress: () => _showQuickActions(context, employee, day, shift),
-            child: Tooltip(
-              message: _copyModeActive 
-                  ? 'Click to select for paste' 
-                  : 'Click to edit • Long press for options',
+    // Wrap shift cell in DragTarget to accept other shifts dropped on it
+    return DragTarget<Map<String, dynamic>>(
+      onWillAcceptWithDetails: (details) => true,
+      onAcceptWithDetails: (details) {
+        final data = details.data;
+        final sourceEmployee = data['employee'] as Employee;
+        final sourceDay = data['day'] as String;
+        final draggedShift = data['shift'] as Shift;
+        
+        // Move the shift
+        _moveShift(sourceEmployee.name, sourceDay, employee.name, day, draggedShift);
+      },
+      builder: (context, candidateData, rejectedData) {
+        final isDragHovering = candidateData.isNotEmpty;
+        
+        return Draggable<Map<String, dynamic>>(
+          data: {
+            'employee': employee,
+            'day': day,
+            'shift': shift,
+          },
+          feedback: Material(
+            elevation: 8,
+            borderRadius: BorderRadius.circular(8),
+            child: Opacity(
+              opacity: 0.8,
               child: Container(
-                padding: const EdgeInsets.all(16),
-                margin: const EdgeInsets.all(4),
+                width: 120,
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isSelected 
-                      ? _primaryBlue.withOpacity(0.3) 
-                      : _getShiftCellColor(shift),
+                  color: _getShiftCellColor(shift),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: isSelected 
-                        ? _primaryBlue 
-                        : _darkGray.withOpacity(0.2),
-                    width: isSelected ? 2.5 : 0.5,
-                  ),
+                  border: Border.all(color: _primaryBlue, width: 2),
                 ),
-                child: Stack(
-                  children: [
-                    _buildShiftContent(shift),
-                    // Quick action buttons on hover (desktop) or always visible (mobile)
-                    Positioned(
-                      top: 0,
-                      right: 0,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                child: _buildShiftContent(shift),
+              ),
+            ),
+          ),
+          childWhenDragging: Container(
+            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: _lightGray.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: _darkGray.withOpacity(0.3),
+                width: 2,
+                style: BorderStyle.solid,
+              ),
+            ),
+            child: Center(
+              child: Icon(
+                Icons.open_with,
+                color: _darkGray.withOpacity(0.5),
+                size: 32,
+              ),
+            ),
+          ),
+          child: MouseRegion(
+            cursor: SystemMouseCursors.grab,
+            child: Builder(
+              builder: (context) {
+                return GestureDetector(
+                  onTap: () {
+                    if (_copyModeActive) {
+                      _toggleCellSelection(employee.name, day);
+                    } else {
+                      _editShift(employee, day, shift);
+                    }
+                  },
+                  onLongPress: () => _showQuickActions(context, employee, day, shift),
+                  child: Tooltip(
+                    message: _copyModeActive 
+                        ? 'Click to select for paste' 
+                        : isBeingMoved
+                          ? 'This shift is cut. Click another cell to move it there.'
+                          : 'Click to edit • Drag to move',
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      margin: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: isDragHovering
+                            ? Colors.green.withOpacity(0.3)
+                            : isSelected 
+                              ? _primaryBlue.withOpacity(0.3)
+                              : isBeingMoved
+                                ? Colors.orange.withOpacity(0.2)
+                                : _getShiftCellColor(shift),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isDragHovering
+                              ? Colors.green
+                              : isSelected 
+                                ? _primaryBlue
+                                : isBeingMoved
+                                  ? Colors.orange
+                                  : _darkGray.withOpacity(0.2),
+                          width: isDragHovering ? 3 : (isSelected || isBeingMoved ? 2.5 : 0.5),
+                        ),
+                      ),
+                      child: Stack(
                         children: [
-                          _buildQuickActionButton(
-                            icon: Icons.content_copy,
-                            onTap: () => _activateCopyMode(shift),
-                            tooltip: 'Quick Copy',
+                          Opacity(
+                            opacity: isBeingMoved ? 0.5 : 1.0,
+                            child: _buildShiftContent(shift),
                           ),
-                          const SizedBox(width: 2),
-                          _buildQuickActionButton(
-                            icon: Icons.delete_outline,
-                            onTap: () =>
-                                _confirmDeleteShift(employee, day, shift),
-                            tooltip: 'Delete',
-                            isDestructive: true,
+                          // Show "CUT" indicator when being moved
+                          if (isBeingMoved)
+                            Positioned(
+                              top: 0,
+                              left: 0,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  'CUT',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          // Quick action buttons on hover (desktop) or always visible (mobile)
+                          Positioned(
+                            top: 0,
+                            right: 0,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildQuickActionButton(
+                                  icon: Icons.content_copy,
+                                  onTap: () => _activateCopyMode(shift),
+                                  tooltip: 'Quick Copy',
+                                ),
+                                const SizedBox(width: 2),
+                                _buildQuickActionButton(
+                                  icon: Icons.delete_outline,
+                                  onTap: () =>
+                                      _confirmDeleteShift(employee, day, shift),
+                                  tooltip: 'Delete',
+                                  isDestructive: true,
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -1381,6 +1507,16 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
             ],
           ),
           onTap: () => _copyShiftToClipboard(employee, day, shift),
+        ),
+        PopupMenuItem(
+          child: Row(
+            children: [
+              Icon(Icons.content_cut, size: 18, color: Colors.orange),
+              const SizedBox(width: 8),
+              const Text('Move', style: TextStyle(color: Colors.orange)),
+            ],
+          ),
+          onTap: () => _cutShiftForMove(employee, day),
         ),
         PopupMenuItem(
           child: Row(
@@ -1519,9 +1655,112 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     });
   }
 
+  void _cutShiftForMove(Employee employee, String day) {
+    setState(() {
+      _moveModeActive = true;
+      _moveSourceEmployee = employee.name;
+      _moveSourceDay = day;
+      _clipboardShift = employee.shifts[day]; // Store reference to the shift
+    });
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Icon(Icons.content_cut, color: Colors.orange, size: 16),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Shift cut. Click any cell to move it there.',
+              style: const TextStyle(color: Colors.white),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.orange,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'Cancel',
+          textColor: Colors.white,
+          onPressed: () {
+            setState(() {
+              _moveModeActive = false;
+              _moveSourceEmployee = null;
+              _moveSourceDay = null;
+              _clipboardShift = null;
+            });
+          },
+        ),
+      ),
+    );
+  }
+
   Future<void> _addShiftToCell(Employee employee, String day) async {
-    if (_hasClipboard()) {
-      // Paste from clipboard
+    if (_moveModeActive && _moveSourceEmployee != null && _moveSourceDay != null && _clipboardShift != null) {
+      // Move mode: move shift from source to target
+      final employeeList = _getEmployeeList();
+      final sourceEmployee = employeeList.firstWhere((e) => e.name == _moveSourceEmployee);
+      
+      setState(() {
+        // Remove shift from source
+        sourceEmployee.shifts.remove(_moveSourceDay);
+        
+        // Add shift to target (create deep copy to avoid reference issues)
+        final shiftJson = _clipboardShift!.toJson();
+        final newShift = Shift.fromJson(shiftJson);
+        employee.shifts[day] = newShift;
+        
+        // Clear move mode state
+        _moveModeActive = false;
+        _moveSourceEmployee = null;
+        _moveSourceDay = null;
+        _clipboardShift = null;
+      });
+      
+      // Save current week data after modification
+      _saveCurrentWeekData();
+      widget.onRosterChanged(employeeList);
+      _notifyCurrentWeekDataChanged();
+      
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Icon(Icons.check_circle, color: Colors.green, size: 16),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Moved shift to ${employee.name} ($day)',
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: const EdgeInsets.all(16),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } else if (_hasClipboard()) {
+      // Copy mode: paste from clipboard
       await _pasteShiftToCell(employee, day);
     } else {
       // Create new shift
@@ -2013,7 +2252,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       // Show notification
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Row(
+                                     content: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(6),
@@ -2033,8 +2272,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           ),
           backgroundColor: Colors.green.shade600,
           behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           margin: const EdgeInsets.all(16),
           duration: const Duration(seconds: 3),
         ),
@@ -2312,7 +2550,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           ],
         );
       },
-    );
+    ); // Add this closing parenthesis for showDialog
   }
 
   // Staff Management Methods

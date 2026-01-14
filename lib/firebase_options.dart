@@ -17,10 +17,7 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -50,11 +47,11 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDvot8t1-AU4BdY3wqWnLXB7xTbY9ddRdQ',
-    appId: '1:528530796279:android:a6609cd813ceedd6d4adf2',
-    messagingSenderId: '528530796279',
-    projectId: 'roster-3fe4b',
-    storageBucket: 'roster-3fe4b.firebasestorage.app',
+    apiKey: 'AIzaSyDOs5MxcyozVxxIlJt3JrhmRA-d9of228U',
+    appId: '1:416892642366:android:faaf0af2835f1db53bdd6f',
+    messagingSenderId: '416892642366',
+    projectId: 'rosterie',
+    storageBucket: 'rosterie.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
@@ -64,5 +61,15 @@ class DefaultFirebaseOptions {
     projectId: 'roster-3fe4b',
     storageBucket: 'roster-3fe4b.firebasestorage.app',
     iosBundleId: 'com.example.Roster',
+  );
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyCpMaXksq_uaABa2K5IqhIHJMkSbNvKWsw',
+    authDomain: 'rosterie.firebaseapp.com',
+    projectId: 'rosterie',
+    storageBucket: 'rosterie.firebasestorage.app',
+    messagingSenderId: '416892642366',
+    appId: '1:416892642366:web:1f243571b625e7f73bdd6f',
+    measurementId: 'G-KCY8NVNDNH',
   );
 }

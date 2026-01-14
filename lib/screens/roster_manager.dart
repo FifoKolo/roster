@@ -4,6 +4,7 @@ import 'adaptive_roster_page.dart';
 import '../services/roster_storage.dart';
 import '../services/holiday_recalculation_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../main.dart' show SignInSignUpPage;
 
 class RosterManager extends StatefulWidget {
   const RosterManager({super.key});
@@ -14,6 +15,7 @@ class RosterManager extends StatefulWidget {
 
 class _RosterManagerState extends State<RosterManager> {
   List<String> rosterNames = [];
+  bool _uploading = false;
 
   @override
   void initState() {
@@ -117,6 +119,42 @@ class _RosterManagerState extends State<RosterManager> {
     } catch (e, stackTrace) {
       print('❌ Error in _createRoster: $e');
       print('❌ Stack trace: $stackTrace');
+    }
+  }
+
+  Future<void> _uploadLocalRostersToCloud() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Sign in required'),
+          content: const Text('Please sign in to upload your local rosters to the cloud.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+          ],
+        ),
+      );
+      return;
+    }
+
+    setState(() => _uploading = true);
+    try {
+      final summary = await RosterStorage.pushAllLocalRostersToCloud(overwrite: false);
+      if (!mounted) return;
+      final uploaded = summary['uploaded'];
+      final skipped = summary['skipped'];
+      final errors = (summary['errors'] as Map).length;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Upload complete: $uploaded uploaded, $skipped skipped, $errors errors')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Upload failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _uploading = false);
     }
   }
 
@@ -1202,19 +1240,58 @@ class _RosterManagerState extends State<RosterManager> {
         title: const Text('Roster Manager'),
         centerTitle: true,
         actions: [
+          // Show account/sign-in options
+          StreamBuilder<User?>(
+            stream: FirebaseAuth.instance.authStateChanges(),
+            builder: (context, snapshot) {
+              final user = snapshot.data;
+              if (user == null) {
+                // Not signed in - show sign in button
+                return IconButton(
+                  tooltip: 'Sign in to sync rosters',
+                  icon: const Icon(Icons.login),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SignInSignUpPage()),
+                    );
+                  },
+                );
+              }
+              
+              // Signed in - show upload and sign out
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Upload local rosters to cloud (one-time migration)
+                  IconButton(
+                    tooltip: _uploading ? 'Uploading…' : 'Upload local rosters to cloud',
+                    icon: _uploading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.sync),
+                    onPressed: _uploading ? null : _uploadLocalRostersToCloud,
+                  ),
+                  // Sign out
+                  IconButton(
+                    tooltip: 'Sign out',
+                    icon: const Icon(Icons.logout),
+                    onPressed: () async {
+                      await FirebaseAuth.instance.signOut();
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
           // Restore deleted rosters
           IconButton(
             tooltip: 'Restore Deleted Rosters',
             icon: const Icon(Icons.restore_from_trash),
             onPressed: _showRestoreDialog,
-          ),
-          // Sign out
-          IconButton(
-            tooltip: 'Sign out',
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-            },
           ),
         ],
       ),
