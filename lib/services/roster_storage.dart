@@ -107,6 +107,9 @@ class RosterStorage {
       return;
     }
 
+    // Rebuild the roster name list from any stored roster_* keys so nothing is missed
+    await recoverRosterNamesIfMissing();
+
     final names = await _loadLocalRosterNames();
     print('🔄 Syncing ${names.length} local roster(s) to cloud...');
 
