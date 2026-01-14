@@ -43,3 +43,20 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Firebase sensitive files (NEVER commit these!)
+**/google-services.json
+**/GoogleService-Info.plist
+**/firebase_options.dart
+.env
+.env.local
+.env.*.local
+lib/config/firebase_config_secret.dart
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+
+# API Keys and secrets
+**/secrets/
+**/*.key
+**/*.pem
+**/*-key.json
