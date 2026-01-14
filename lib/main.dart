@@ -106,7 +106,7 @@ class RosterApp extends StatelessWidget {
       ),
       // Use AuthGate to show sign-in/sign-up if not authenticated
       home: AuthGate(
-        skipAuth: false, // Always require authentication on web
+        skipAuth: localOnly,
         child: const RosterManager(),
       ),
     );
