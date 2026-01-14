@@ -2148,7 +2148,8 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
             ),
           ),
         ),
-      );
+      ),
+    );
   }
 
   // Create fresh roster with only staff names (no shifts)
