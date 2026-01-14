@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "416892642366",
+    "project_id": "rosterie",
+    "storage_bucket": "rosterie.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:416892642366:android:faaf0af2835f1db53bdd6f",
+        "android_client_info": {
+          "package_name": "com.company.RosterAnd"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "416892642366-naopd31int2dnv3245k5oqr2f4c6sd8g.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDOs5MxcyozVxxIlJt3JrhmRA-d9of228U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "416892642366-naopd31int2dnv3245k5oqr2f4c6sd8g.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

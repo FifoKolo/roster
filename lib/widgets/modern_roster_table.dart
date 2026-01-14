@@ -2148,8 +2148,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 
   // Create fresh roster with only staff names (no shifts)
@@ -2252,7 +2251,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       // Show notification
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-                                     content: Row(
+          content: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(6),
@@ -2550,7 +2549,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           ],
         );
       },
-    ); // Add this closing parenthesis for showDialog
+    );
   }
 
   // Staff Management Methods
