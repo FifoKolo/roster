@@ -104,8 +104,11 @@ class RosterApp extends StatelessWidget {
           fillColor: AppTheme.surface,
         ),
       ),
-      // Go straight to RosterManager (local mode by default)
-      home: const RosterManager(),
+      // Use AuthGate to show sign-in/sign-up if not authenticated
+      home: AuthGate(
+        skipAuth: localOnly,
+        child: const RosterManager(),
+      ),
     );
   }
 }
@@ -266,6 +269,7 @@ class _SignInSignUpPageState extends State<SignInSignUpPage> {
                   onPressed: canSubmit ? _submit : null,
                   child: Text(busy ? 'Please wait...' : (isLogin ? 'Sign In' : 'Sign Up')),
                 ),
+                const SizedBox(height: 12),
                 TextButton(
                   onPressed: () => setState(() {
                     isLogin = !isLogin;
