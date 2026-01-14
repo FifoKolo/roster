@@ -1,1 +1,54 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"rosterie","appId":"1:416892642366:android:bbe67010eb0bfbff3bdd6f","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"rosterie","configurations":{"android":"1:416892642366:android:bbe67010eb0bfbff3bdd6f","macos":"1:416892642366:ios:e17b45161c40123c3bdd6f","web":"1:416892642366:web:1f243571b625e7f73bdd6f","windows":"1:416892642366:web:f5bff6188201c68d3bdd6f"}}}}}}
+{
+  "hosting": {
+    "public": "docs",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ],
+    "headers": [
+      {
+        "source": "/flutter_bootstrap.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "max-age=3600"
+          }
+        ]
+      },
+      {
+        "source": "/main.dart.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "max-age=3600"
+          }
+        ]
+      }
+    ]
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "rosterie",
+          "appId": "1:416892642366:android:bbe67010eb0bfbff3bdd6f",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "rosterie",
+          "configurations": {
+            "android": "1:416892642366:android:bbe67010eb0bfbff3bdd6f",
+            "macos": "1:416892642366:ios:e17b45161c40123c3bdd6f",
+            "web": "1:416892642366:web:1f243571b625e7f73bdd6f",
+            "windows": "1:416892642366:web:f5bff6188201c68d3bdd6f"
+          }
+        }
+      }
+    }
+  }
+}
