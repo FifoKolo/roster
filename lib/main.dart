@@ -15,6 +15,7 @@
 // NOTE: Staff list starts empty (as requested). Use the + button to add staff for testing
 // or integrate your own staff dataset where indicated.
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -114,18 +115,40 @@ class RosterApp extends StatelessWidget {
 }
 
 // NEW: Gate to show login/signup or app (and verify email)
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   final Widget child;
   // NEW: skip auth entirely (local-only mode)
   final bool skipAuth;
   const AuthGate({super.key, required this.child, this.skipAuth = false});
 
   @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  late StreamSubscription<bool> _offlineSub;
+  bool _offline = AuthService.instance.offlineOverride;
+
+  @override
+  void initState() {
+    super.initState();
+    _offlineSub = AuthService.instance.offline$.listen((value) {
+      setState(() => _offline = value);
+    });
+  }
+
+  @override
+  void dispose() {
+    _offlineSub.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     // Local-only mode: no auth, no cloud sync
-    if (skipAuth) {
+    if (widget.skipAuth || _offline) {
       RosterStorage.configureCloud(null);
-      return child;
+      return widget.child;
     }
 
     return StreamBuilder<User?>(
@@ -144,9 +167,9 @@ class AuthGate extends StatelessWidget {
         );
         // Optional: gate unverified emails with a simple screen
         if (!(user.emailVerified)) {
-          return _VerifyEmailPage(onContinue: child);
+          return _VerifyEmailPage(onContinue: widget.child);
         }
-        return child;
+        return widget.child;
       },
     );
   }
@@ -180,6 +203,8 @@ class _SignInSignUpPageState extends State<SignInSignUpPage> {
     try {
       if (isLogin) {
         await AuthService.instance.signIn(emailCtl.text, passCtl.text);
+        AuthService.instance.clearOfflineOverride();
+        await RosterStorage.syncLocalToCloud();
         // Close sign-in page and return to Roster Manager
         if (mounted) Navigator.pop(context);
       } else {
@@ -188,6 +213,8 @@ class _SignInSignUpPageState extends State<SignInSignUpPage> {
           passCtl.text,
           displayName: nameCtl.text.trim().isEmpty ? null : nameCtl.text.trim(),
         );
+        AuthService.instance.clearOfflineOverride();
+        await RosterStorage.syncLocalToCloud();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Verification email sent')),
@@ -268,6 +295,13 @@ class _SignInSignUpPageState extends State<SignInSignUpPage> {
                 ElevatedButton(
                   onPressed: canSubmit ? _submit : null,
                   child: Text(busy ? 'Please wait...' : (isLogin ? 'Sign In' : 'Sign Up')),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton(
+                  onPressed: busy ? null : () {
+                    AuthService.instance.goOffline();
+                  },
+                  child: const Text('Continue without account'),
                 ),
                 const SizedBox(height: 12),
                 TextButton(

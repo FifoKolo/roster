@@ -100,6 +100,31 @@ class RosterStorage {
     });
   }
 
+  /// Push all local rosters to cloud after a user signs in.
+  static Future<void> syncLocalToCloud({bool overwriteCloud = true}) async {
+    if (!_useCloud || _uid == null) {
+      print('ℹ️ syncLocalToCloud skipped: not in cloud mode');
+      return;
+    }
+
+    final names = await _loadLocalRosterNames();
+    print('🔄 Syncing ${names.length} local roster(s) to cloud...');
+
+    for (final rosterName in names) {
+      try {
+        final employees = await _loadLocalRoster(rosterName);
+        await _cloud.createRoster(rosterName);
+
+        if (overwriteCloud || employees.isNotEmpty) {
+          await _cloud.saveRoster(rosterName, employees);
+          print('✅ Synced "$rosterName" (${employees.length} employees)');
+        }
+      } catch (e) {
+        print('⚠️ Failed to sync "$rosterName" to cloud: $e');
+      }
+    }
+  }
+
   static void _seedRosterStreamOnce(String rosterName) {
     print('🔍 _seedRosterStreamOnce called for: $rosterName');
     final existing = _rosterCtrls[rosterName];

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'roster_storage.dart';
 
@@ -6,9 +8,13 @@ class AuthService {
   static final AuthService instance = AuthService._();
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final _offlineCtrl = StreamController<bool>.broadcast();
+  bool _offlineOverride = false;
 
   Stream<User?> get authState$ => _auth.authStateChanges();
   User? get currentUser => _auth.currentUser;
+  Stream<bool> get offline$ => _offlineCtrl.stream;
+  bool get offlineOverride => _offlineOverride;
 
   /// Initialize auth listener to configure cloud storage when auth state changes
   void initialize() {
@@ -21,12 +27,25 @@ class AuthService {
           displayName: user.displayName,
         );
         print('✅ User signed in: ${user.email}');
+        clearOfflineOverride();
       } else {
         // User signed out, use local-only mode
         RosterStorage.configureCloud(null);
         print('📱 User signed out, using local storage');
       }
     });
+  }
+
+  void goOffline() {
+    if (_offlineOverride) return;
+    _offlineOverride = true;
+    _offlineCtrl.add(true);
+  }
+
+  void clearOfflineOverride() {
+    if (!_offlineOverride) return;
+    _offlineOverride = false;
+    _offlineCtrl.add(false);
   }
 
   Future<UserCredential> signIn(String email, String password) async {
