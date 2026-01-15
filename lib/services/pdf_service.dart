@@ -260,7 +260,7 @@ class PdfService {
                     _buildTableCell(e.totalMondayToSaturdayPaidHours.toStringAsFixed(2), PdfColors.blue, bold: true),
                     _buildTableCell(e.totalSundayPaidHours.toStringAsFixed(2), PdfColors.purple, bold: true),
                     _buildTableCell(e.totalHolidayHoursUsed.toStringAsFixed(2), PdfColors.orange, bold: true),
-                    _buildTableCell(((e.customAccumulatedHours ?? e.accumulatedWorkedHours) + e.totalWorkedHours).toStringAsFixed(2), PdfColors.cyan, bold: true),
+                    _buildTableCell(((e.customAccumulatedHours ?? e.accumulatedWorkedHours) + e.totalPaidHours).toStringAsFixed(2), PdfColors.cyan, bold: true),
                     // Holiday balances: total = (accumulated + custom) + earned; remaining = total - used
                     _buildTableCell(((e.accumulatedHolidayHours + (e.customHolidayHours ?? 0) + e.holidayHoursEarnedThisWeek - e.totalHolidayHoursUsed)).toStringAsFixed(2),
                       (((e.accumulatedHolidayHours + (e.customHolidayHours ?? 0) + e.holidayHoursEarnedThisWeek - e.totalHolidayHoursUsed)) < 0)
@@ -281,7 +281,7 @@ class PdfService {
                   _buildTableCell(employees.fold(0.0, (sum, e) => sum + e.totalMondayToSaturdayPaidHours).toStringAsFixed(2), PdfColors.blue, bold: true),
                   _buildTableCell(employees.fold(0.0, (sum, e) => sum + e.totalSundayPaidHours).toStringAsFixed(2), PdfColors.purple, bold: true),
                   _buildTableCell(employees.fold(0.0, (sum, e) => sum + e.totalHolidayHoursUsed).toStringAsFixed(2), PdfColors.orange, bold: true),
-                  _buildTableCell(employees.fold(0.0, (sum, e) => sum + ((e.customAccumulatedHours ?? e.accumulatedWorkedHours) + e.totalWorkedHours)).toStringAsFixed(2), PdfColors.cyan, bold: true),
+                  _buildTableCell(employees.fold(0.0, (sum, e) => sum + ((e.customAccumulatedHours ?? e.accumulatedWorkedHours) + e.totalPaidHours)).toStringAsFixed(2), PdfColors.cyan, bold: true),
                         _buildTableCell(
                           employees
                             .fold(0.0, (sum, e) => sum + (e.accumulatedHolidayHours + (e.customHolidayHours ?? 0) + e.holidayHoursEarnedThisWeek - e.totalHolidayHoursUsed))
