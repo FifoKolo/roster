@@ -32,8 +32,12 @@ class _RosterManagerState extends State<RosterManager> {
 
   /// Create a new roster (remove default staff)
   Future<void> _createRoster() async {
-    print('🔍 _createRoster: Starting...');
+    print('🔍 _createRoster: Button pressed!');
     try {
+      // Check if this is the first roster by using the already-loaded rosterNames state
+      final isFirstRoster = rosterNames.isEmpty;
+      print('🔍 Is first roster? $isFirstRoster (${rosterNames.length} existing)');
+      
       // Use current week instead of asking user to select
       final now = DateTime.now();
       final currentMonday = now.subtract(Duration(days: now.weekday - 1));
@@ -45,13 +49,22 @@ class _RosterManagerState extends State<RosterManager> {
 
       // Simple default name without dates (dates are shown in the app UI)
       final defaultName = 'Week $weekNumber';
-
-      print('🔍 Showing name dialog...');
-      // Show dialog with pre-filled name
-      final customName = await _showNewRosterDialog(defaultName);
-      if (customName == null || customName.isEmpty) {
-        print('❌ User cancelled name dialog');
-        return;
+      print('🔍 Default roster name: $defaultName');
+      
+      String customName;
+      if (isFirstRoster) {
+        // For first roster, skip the name dialog and use default name immediately
+        print('🔍 ✅ First roster - skipping dialog, going straight to staff names');
+        customName = defaultName;
+      } else {
+        // For subsequent rosters, show the name dialog
+        print('🔍 Not first roster - showing name dialog');
+        final dialogResult = await _showNewRosterDialog(defaultName);
+        if (dialogResult == null || dialogResult.isEmpty) {
+          print('❌ User cancelled name dialog');
+          return;
+        }
+        customName = dialogResult;
       }
       print('✅ Got roster name: $customName');
 

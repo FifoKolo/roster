@@ -6,6 +6,7 @@ import '../models/salary_model.dart';
 import '../services/salary_service.dart';
 import '../services/roster_storage.dart';
 import '../widgets/salary_profile_dialog.dart';
+import '../widgets/document_management_dialog.dart';
 import '../utils/responsive_helper.dart';
 
 class EmployeeProfileDialog extends StatefulWidget {
@@ -63,6 +64,23 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
     if (result != null) {
       await _loadEmployeeData();
     }
+  }
+
+  Future<void> _openDocumentManagementDialog() async {
+    await showDialog(
+      context: context,
+      builder: (context) => DocumentManagementDialog(
+        employeeName: widget.employee.name,
+        documents: widget.employee.documents,
+        onDocumentsChanged: (updatedDocuments) {
+          setState(() {
+            widget.employee.documents.clear();
+            widget.employee.documents.addAll(updatedDocuments);
+          });
+          widget.onEmployeeUpdated?.call();
+        },
+      ),
+    );
   }
 
   Future<void> _deleteSalaryProfile() async {
@@ -240,6 +258,82 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
                             _buildEditableHoursRow('Total Holiday Hours', widget.employee.customHolidayHours ?? widget.employee.accumulatedHolidayHours),
                             SizedBox(height: isMobile ? 12 : 8),
                             _buildTotalHolidayHoursDisplay(),
+                          ],
+                        ),
+                      ),
+
+                      SizedBox(height: isMobile ? 12 : 16),
+
+                      _buildSectionCard(
+                        title: 'Personal Documents',
+                        icon: Icons.folder_open,
+                        color: Colors.deepPurple,
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.insert_drive_file, size: isMobile ? 18 : 20, color: Colors.grey[600]),
+                                SizedBox(width: isMobile ? 8 : 10),
+                                Expanded(
+                                  child: Text(
+                                    '${widget.employee.documents.length} document${widget.employee.documents.length != 1 ? 's' : ''} stored',
+                                    style: TextStyle(
+                                      fontSize: isMobile ? 14 : 15,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: isMobile ? 10 : 12),
+                            // Show document category badges
+                            if (widget.employee.documents.isNotEmpty)
+                              Padding(
+                                padding: EdgeInsets.only(bottom: isMobile ? 10 : 12),
+                                child: Wrap(
+                                  spacing: isMobile ? 6 : 8,
+                                  runSpacing: isMobile ? 6 : 8,
+                                  children: _getUniqueDocumentCategories()
+                                      .map((category) => _buildCategoryBadge(category, isMobile))
+                                      .toList(),
+                                ),
+                              )
+                            else
+                              Padding(
+                                padding: EdgeInsets.only(bottom: isMobile ? 10 : 12),
+                                child: Text(
+                                  'No documents uploaded yet',
+                                  style: TextStyle(
+                                    fontSize: isMobile ? 12 : 13,
+                                    color: Colors.grey[500],
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ),
+                            Text(
+                              'Store training certificates, medical notes, doctor\'s sick leave documentation, and other important documents.',
+                              style: TextStyle(
+                                fontSize: isMobile ? 12 : 13,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            SizedBox(height: isMobile ? 12 : 16),
+                            ElevatedButton.icon(
+                              onPressed: _openDocumentManagementDialog,
+                              icon: Icon(Icons.folder_open, size: isMobile ? 16 : 18),
+                              label: Text(
+                                'Manage Documents',
+                                style: TextStyle(fontSize: isMobile ? 14 : 15),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.deepPurple,
+                                foregroundColor: Colors.white,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: isMobile ? 16 : 20,
+                                  vertical: isMobile ? 10 : 12,
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -1067,5 +1161,130 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
         );
       }).toList(),
     );
+  }
+
+  List<String> _getUniqueDocumentCategories() {
+    final categories = <String>{};
+    for (final doc in widget.employee.documents) {
+      categories.add(doc.category);
+    }
+    return categories.toList()..sort();
+  }
+
+  Widget _buildCategoryBadge(String category, bool isMobile) {
+    IconData icon;
+    Color color;
+    
+    switch (category) {
+      case 'Training':
+        icon = Icons.school;
+        color = Colors.blue;
+        break;
+      case 'Medical':
+        icon = Icons.medical_services;
+        color = Colors.red;
+        break;
+      case 'Contract':
+        icon = Icons.description;
+        color = Colors.green;
+        break;
+      case 'Identification':
+        icon = Icons.badge;
+        color = Colors.purple;
+        break;
+      case 'Certification':
+        icon = Icons.verified;
+        color = Colors.orange;
+        break;
+      case 'Right to Work':
+        icon = Icons.verified_user;
+        color = Colors.teal;
+        break;
+      case 'PPS Number':
+        icon = Icons.numbers;
+        color = Colors.indigo;
+        break;
+      case 'Tax Declaration':
+        icon = Icons.receipt;
+        color = Colors.amber;
+        break;
+      case 'Health & Safety':
+        icon = Icons.security;
+        color = Colors.pink;
+        break;
+      case 'Induction':
+        icon = Icons.assignment;
+        color = Colors.cyan;
+        break;
+      case 'Sick Leave':
+        icon = Icons.sick;
+        color = Colors.red;
+        break;
+      case 'Parental Leave':
+        icon = Icons.child_care;
+        color = Colors.lime;
+        break;
+      case 'Vaccination Records':
+        icon = Icons.favorite;
+        color = Colors.deepOrange;
+        break;
+      case 'Garda Vetting':
+        icon = Icons.verified_user;
+        color = Colors.blueGrey;
+        break;
+      default:
+        icon = Icons.insert_drive_file;
+        color = Colors.grey;
+    }
+
+    final docCount = widget.employee.documents.where((doc) => doc.category == category).length;
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 8 : 10,
+        vertical: isMobile ? 6 : 8,
+      ),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: isMobile ? 14 : 16, color: color),
+          SizedBox(width: isMobile ? 4 : 6),
+          Text(
+            '$category ($docCount)',
+            style: TextStyle(
+              fontSize: isMobile ? 12 : 13,
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+extension TimeOfDayExtension on TimeOfDay {
+  // Converts TimeOfDay to a 24-hour formatted string (e.g., "14:30").
+  String format24Hour() {
+    final hour = this.hour.toString().padLeft(2, '0');
+    final minute = this.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
+  // Parses a 24-hour formatted string (nullable-safe).
+  static TimeOfDay? from24Hour(String? time) {
+    if (time == null) return null;
+    final reg = RegExp(r'^\d{2}:\d{2}$');
+    if (!reg.hasMatch(time)) return null;
+    final parts = time.split(':');
+    final h = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (h == null || m == null) return null;
+    return TimeOfDay(hour: h, minute: m);
   }
 }

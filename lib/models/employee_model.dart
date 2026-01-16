@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'employee_document.dart';
 
 // Data models for the roster app.
 //
@@ -132,6 +133,7 @@ class Employee {
   String? contractPdfBase64;  // Stored PDF content (base64)
   double? customAccumulatedHours;  // Custom total accumulated hours (overrides auto calculation)
   double? customHolidayHours;      // Custom total holiday hours (overrides auto calculation)
+  List<EmployeeDocument> documents; // NEW: Personal documents (training, medical, etc.)
 
   Employee({
     required this.name,
@@ -148,7 +150,9 @@ class Employee {
     this.contractPdfBase64,
     this.customAccumulatedHours,
     this.customHolidayHours,
-  }) : shifts = shifts ?? {};
+    List<EmployeeDocument>? documents,
+  }) : shifts = shifts ?? {},
+       documents = documents ?? [];
 
   double get totalWorkedHours {
     return shifts.values.fold(0, (sum, shift) => sum + shift.duration);
@@ -407,8 +411,9 @@ class Employee {
       'contractPdfBase64': contractPdfBase64,
       'customAccumulatedHours': customAccumulatedHours,
       'customHolidayHours': customHolidayHours,
+      'documents': documents.map((doc) => doc.toJson()).toList(),
     };
-    print('🔍 Employee.toJson for $name: ${shifts.length} shifts, ${json.toString().substring(0, json.toString().length > 100 ? 100 : json.toString().length)}...');
+    print('🔍 Employee.toJson for $name: ${shifts.length} shifts, ${documents.length} documents');
     return json;
   }
 
@@ -439,7 +444,19 @@ class Employee {
       return <String, Shift>{};
     })();
     
-    print('🔧 Employee.fromJson $name: created with ${shifts.length} shifts');
+    
+    // Parse documents list
+    final documentsList = <EmployeeDocument>[];
+    if (json['documents'] is List) {
+      for (final docJson in json['documents'] as List) {
+        try {
+          documentsList.add(EmployeeDocument.fromJson(Map<String, dynamic>.from(docJson as Map)));
+        } catch (e) {
+          print('⚠️ Failed to parse document for $name: $e');
+        }
+      }
+    }
+    
     return Employee(
     name: name,
     shifts: shifts,
@@ -455,6 +472,7 @@ class Employee {
       contractPdfBase64: json['contractPdfBase64'] as String?,
     customAccumulatedHours: (json['customAccumulatedHours'] as num?)?.toDouble(),
     customHolidayHours: (json['customHolidayHours'] as num?)?.toDouble(),
+    documents: documentsList,
   );
   }
 }

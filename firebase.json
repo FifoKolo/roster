@@ -1,31 +1,15 @@
 {
   "hosting": {
-    "public": "docs",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
     "rewrites": [
       {
         "source": "**",
         "destination": "/index.html"
-      }
-    ],
-    "headers": [
-      {
-        "source": "/flutter_bootstrap.js",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "max-age=3600"
-          }
-        ]
-      },
-      {
-        "source": "/main.dart.js",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "max-age=3600"
-          }
-        ]
       }
     ]
   },
