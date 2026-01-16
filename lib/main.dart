@@ -224,9 +224,35 @@ class _SignInSignUpPageState extends State<SignInSignUpPage> {
         }
       }
     } catch (e) {
-      setState(() { error = e.toString(); });
+      // Convert Firebase error codes to user-friendly messages
+      String userFriendlyError = _getErrorMessage(e.toString());
+      setState(() { error = userFriendlyError; });
     } finally {
       if (mounted) setState(() { busy = false; });
+    }
+  }
+
+  String _getErrorMessage(String firebaseError) {
+    // Parse Firebase error codes and return friendly messages
+    if (firebaseError.contains('invalid-credential') || 
+        firebaseError.contains('user-not-found') ||
+        firebaseError.contains('INVALID_LOGIN_CREDENTIALS')) {
+      return 'Invalid email or password. Please check and try again.';
+    } else if (firebaseError.contains('email-already-in-use')) {
+      return 'This email is already in use. Try signing in instead.';
+    } else if (firebaseError.contains('weak-password')) {
+      return 'Password is too weak. Please use at least 6 characters.';
+    } else if (firebaseError.contains('invalid-email')) {
+      return 'Invalid email address. Please check the format.';
+    } else if (firebaseError.contains('too-many-requests')) {
+      return 'Too many attempts. Please try again later.';
+    } else if (firebaseError.contains('network')) {
+      return 'Network error. Please check your internet connection.';
+    } else if (firebaseError.contains('operation-not-allowed')) {
+      return 'Sign in is currently disabled. Please try again later.';
+    } else {
+      // Default: return a generic friendly message
+      return 'Sign in failed. Please check your email and password.';
     }
   }
 
