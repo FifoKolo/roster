@@ -1,5 +1,6 @@
 import 'package:ntp/ntp.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 /// Provides accurate time using NTP (Network Time Protocol)
 /// Falls back to device time if NTP fails
@@ -45,6 +46,14 @@ class TimeService {
   
   /// Sync time with NTP server
   static Future<void> _syncWithNTP() async {
+    // Skip NTP sync on web platform - InternetAddress.lookup not supported
+    if (kIsWeb) {
+      print('🌐 Web platform detected - using browser time (NTP not supported)');
+      _timeOffsetMs = 0; // Use device/browser time
+      _lastSyncTime = DateTime.now();
+      return;
+    }
+    
     try {
       print('⏰ Syncing time with NTP server...');
       

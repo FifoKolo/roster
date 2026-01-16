@@ -205,8 +205,7 @@ class _SignInSignUpPageState extends State<SignInSignUpPage> {
         await AuthService.instance.signIn(emailCtl.text, passCtl.text);
         AuthService.instance.clearOfflineOverride();
         await RosterStorage.syncLocalToCloud();
-        // Close sign-in page and return to Roster Manager
-        if (mounted) Navigator.pop(context);
+        // StreamBuilder will automatically rebuild and show roster
       } else {
         await AuthService.instance.signUp(
           emailCtl.text,
@@ -219,8 +218,7 @@ class _SignInSignUpPageState extends State<SignInSignUpPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Verification email sent')),
           );
-          // Close sign-up page and return to Roster Manager
-          Navigator.pop(context);
+          // StreamBuilder will automatically rebuild and show roster
         }
       }
     } catch (e) {
