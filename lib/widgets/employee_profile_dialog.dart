@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../models/employee_model.dart';
@@ -8,6 +9,10 @@ import '../services/roster_storage.dart';
 import '../widgets/salary_profile_dialog.dart';
 import '../widgets/document_management_dialog.dart';
 import '../utils/responsive_helper.dart';
+
+// Conditional imports for web
+import 'dart:html' as html show window;
+import 'dart:js' as js;
 
 class EmployeeProfileDialog extends StatefulWidget {
   final Employee employee;
@@ -248,6 +253,8 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
                         child: Column(
                           children: [
                             _buildEditableInfoRow('Email', widget.employee.email ?? 'Not set'),
+                            SizedBox(height: isMobile ? 12 : 8),
+                            _buildContractTypeRow(),
                             SizedBox(height: isMobile ? 12 : 8),
                             _buildContractPdfRow(),
                             SizedBox(height: isMobile ? 12 : 8),
@@ -550,6 +557,63 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
     );
   }
 
+  Widget _buildContractTypeRow() {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    
+    // Irish employment contract types
+    final contractTypes = [
+      'Full-Time Permanent',
+      'Part-Time Permanent',
+      'Fixed-Term Contract',
+      'Casual/Temporary',
+      'Apprenticeship',
+      'Agency Worker',
+    ];
+    
+    final currentType = widget.employee.contractType ?? 'Not set';
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        'Contract Type',
+        style: TextStyle(fontSize: isMobile ? 14 : 15, fontWeight: FontWeight.w600),
+      ),
+      subtitle: Text(
+        currentType,
+        style: TextStyle(
+          fontSize: isMobile ? 13 : 14, 
+          color: currentType == 'Not set' ? Colors.grey[700] : Colors.blue[700],
+          fontWeight: currentType == 'Not set' ? FontWeight.normal : FontWeight.w500,
+        ),
+      ),
+      trailing: SizedBox(
+        width: isMobile ? 140 : 170,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.work_outline, size: 18),
+              tooltip: 'Select contract type',
+              onPressed: () => _showContractTypeDialog(contractTypes),
+            ),
+            if (currentType != 'Not set')
+              IconButton(
+                icon: const Icon(Icons.clear, size: 18),
+                onPressed: () {
+                  setState(() {
+                    widget.employee.contractType = null;
+                  });
+                  widget.onEmployeeUpdated?.call();
+                },
+                tooltip: 'Clear',
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildEditableHoursRow(String label, double value) {
     final isMobile = ResponsiveHelper.isMobile(context);
     final isBaseHours = label.contains('Base');
@@ -755,6 +819,350 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
 
     if (result == true && mounted) {
       onSaved(controller.text);
+    }
+  }
+
+  Future<void> _showContractTypeDialog(List<String> contractTypes) async {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Select Contract Type'),
+          content: SizedBox(
+            width: isMobile ? 280 : 400,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Choose the employment contract type for this employee:',
+                    style: TextStyle(fontSize: isMobile ? 13 : 14, color: Colors.grey[700]),
+                  ),
+                  const SizedBox(height: 16),
+                  ...contractTypes.map((type) {
+                    final isSelected = widget.employee.contractType == type;
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      color: isSelected ? Colors.blue[50] : null,
+                      child: ListTile(
+                        dense: isMobile,
+                        leading: Icon(
+                          _getContractTypeIcon(type),
+                          color: isSelected ? Colors.blue : Colors.grey[600],
+                          size: isMobile ? 20 : 24,
+                        ),
+                        title: Text(
+                          type,
+                          style: TextStyle(
+                            fontSize: isMobile ? 13 : 14,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            color: isSelected ? Colors.blue[800] : null,
+                          ),
+                        ),
+                        subtitle: Text(
+                          _getContractTypeDescription(type),
+                          style: TextStyle(fontSize: isMobile ? 11 : 12),
+                        ),
+                        trailing: isSelected 
+                          ? Icon(Icons.check_circle, color: Colors.blue, size: isMobile ? 18 : 20)
+                          : null,
+                        onTap: () => Navigator.of(context).pop(type),
+                      ),
+                    );
+                  }).toList(),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result != null && mounted) {
+      setState(() {
+        widget.employee.contractType = result;
+      });
+      widget.onEmployeeUpdated?.call();
+      
+      // Show template download dialog
+      await _showTemplateDownloadDialog(result);
+    }
+  }
+
+  Future<void> _showTemplateDownloadDialog(String contractType) async {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final templateUrl = _getContractTemplateUrl(contractType);
+    
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.download, color: Colors.blue, size: isMobile ? 20 : 24),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Download Template',
+                  style: TextStyle(fontSize: isMobile ? 16 : 18),
+                ),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: isMobile ? 280 : 450,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Contract Type: $contractType',
+                  style: TextStyle(
+                    fontSize: isMobile ? 14 : 15,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue[800],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue[200]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.info_outline, size: isMobile ? 16 : 18, color: Colors.blue[700]),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Next Steps:',
+                              style: TextStyle(
+                                fontSize: isMobile ? 13 : 14,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue[900],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '1. Click "Download Template" below\n'
+                        '2. The contract template will download/open automatically\n'
+                        '3. Fill it out with employee details\n'
+                        '4. Save/Export as PDF\n'
+                        '5. Return here and click upload (📄) to import it',
+                        style: TextStyle(fontSize: isMobile ? 12 : 13),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.link, size: isMobile ? 14 : 16, color: Colors.grey[600]),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          templateUrl,
+                          style: TextStyle(
+                            fontSize: isMobile ? 11 : 12,
+                            color: Colors.grey[700],
+                            fontFamily: 'monospace',
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Maybe Later'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.of(context).pop(true),
+              icon: const Icon(Icons.download, size: 18),
+              label: const Text('Download Template'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == true && mounted) {
+      // Import url_launcher dynamically
+      try {
+        await _launchUrl(templateUrl);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Could not open browser. Please visit: $templateUrl'),
+              duration: const Duration(seconds: 5),
+              action: SnackBarAction(
+                label: 'Copy',
+                onPressed: () {
+                  // Copy to clipboard functionality would go here
+                },
+              ),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  String _getContractTemplateUrl(String contractType) {
+    // Direct links to Irish employment contract templates and resources
+    switch (contractType) {
+      case 'Full-Time Permanent':
+      case 'Part-Time Permanent':
+      case 'Fixed-Term Contract':
+        // Direct link to Sample Terms of Employment template (Word format)
+        return 'https://www.workplacerelations.ie/en/what_you_should_know/employer-obligations/terms-of-employment/sample-statements-of-terms-of-employment.docx';
+      case 'Casual/Temporary':
+        return 'https://www.workplacerelations.ie/en/publications_forms/guides_booklets/';
+      case 'Apprenticeship':
+        return 'https://www.apprenticeship.ie/';
+      case 'Agency Worker':
+        return 'https://www.citizensinformation.ie/en/employment/types-of-employment/';
+      default:
+        return 'https://www.workplacerelations.ie/en/what_you_should_know/employer-obligations/terms-of-employment/sample-statements-of-terms-of-employment.docx';
+    }
+  }
+
+  Future<void> _launchUrl(String urlString) async {
+    try {
+      if (kIsWeb) {
+        // For web platform, open in new tab
+        html.window.open(urlString, '_blank');
+      } else {
+        // For other platforms, show the URL
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Template URL'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Please open this URL in your browser:'),
+                  const SizedBox(height: 16),
+                  SelectableText(
+                    urlString,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Close'),
+                ),
+              ],
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Fallback: show URL in dialog
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Template URL'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Please open this URL in your browser:'),
+                const SizedBox(height: 16),
+                SelectableText(
+                  urlString,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+  }
+
+  IconData _getContractTypeIcon(String type) {
+    switch (type) {
+      case 'Full-Time Permanent':
+        return Icons.work;
+      case 'Part-Time Permanent':
+        return Icons.work_outline;
+      case 'Fixed-Term Contract':
+        return Icons.event_note;
+      case 'Casual/Temporary':
+        return Icons.schedule;
+      case 'Apprenticeship':
+        return Icons.school;
+      case 'Agency Worker':
+        return Icons.business_center;
+      default:
+        return Icons.work;
+    }
+  }
+
+  String _getContractTypeDescription(String type) {
+    switch (type) {
+      case 'Full-Time Permanent':
+        return 'Standard 35-40 hours/week, ongoing employment';
+      case 'Part-Time Permanent':
+        return 'Less than 35 hours/week, ongoing employment';
+      case 'Fixed-Term Contract':
+        return 'Temporary position with specified end date';
+      case 'Casual/Temporary':
+        return 'Irregular hours, as-needed basis';
+      case 'Apprenticeship':
+        return 'Training contract with education component';
+      case 'Agency Worker':
+        return 'Employed through recruitment agency';
+      default:
+        return '';
     }
   }
 

@@ -128,6 +128,7 @@ class Employee {
 
   // NEW: Admin/Profile information
   String? email;              // Employee email address
+  String? contractType;       // Type of employment contract (Full-Time, Part-Time, etc.)
   String? contractPdfPath;    // Path or URL to contract PDF
   String? contractPdfName;    // Stored PDF filename
   String? contractPdfBase64;  // Stored PDF content (base64)
@@ -145,6 +146,7 @@ class Employee {
     this.rosterStartDate,
     this.rosterEndDate,
     this.email,
+    this.contractType,
     this.contractPdfPath,
     this.contractPdfName,
     this.contractPdfBase64,
@@ -406,6 +408,7 @@ class Employee {
       'rosterStartDate': rosterStartDate?.millisecondsSinceEpoch,
       'rosterEndDate': rosterEndDate?.millisecondsSinceEpoch,
       'email': email,
+      'contractType': contractType,
       'contractPdfPath': contractPdfPath,
       'contractPdfName': contractPdfName,
       'contractPdfBase64': contractPdfBase64,
@@ -467,6 +470,7 @@ class Employee {
     rosterStartDate: json['rosterStartDate'] != null ? DateTime.fromMillisecondsSinceEpoch(json['rosterStartDate'] as int) : null,
     rosterEndDate: json['rosterEndDate'] != null ? DateTime.fromMillisecondsSinceEpoch(json['rosterEndDate'] as int) : null,
     email: json['email'] as String?,
+    contractType: json['contractType'] as String?,
     contractPdfPath: json['contractPdfPath'] as String?,
       contractPdfName: json['contractPdfName'] as String?,
       contractPdfBase64: json['contractPdfBase64'] as String?,
