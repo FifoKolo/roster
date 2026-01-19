@@ -27,6 +27,7 @@ import 'screens/roster_manager.dart';
 import 'services/roster_storage.dart';
 import 'services/auth_service.dart';
 import 'services/time_service.dart';
+import 'services/orientation_service.dart';
 import 'theme/app_theme.dart';
 
 // Entry point
@@ -35,6 +36,9 @@ void main() async {
 
   // Initialize accurate time service (uses NTP for accurate dates)
   await TimeService.initialize();
+
+  // Initialize orientation service - unlock by default (allows all orientations)
+  await OrientationService.resetOrientation();
 
   var localOnly = false;
 

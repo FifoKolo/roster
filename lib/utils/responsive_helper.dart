@@ -85,21 +85,69 @@ class ResponsiveHelper {
     
     // Scale based on screen width for better mobile readability
     double scaleFactor = 1.0;
-    if (screenWidth < 375) {
-      scaleFactor = 0.85; // Small phones
+    if (screenWidth < 320) {
+      scaleFactor = 0.9; // Very small phones (older phones)
+    } else if (screenWidth < 375) {
+      scaleFactor = 0.95; // Small phones
     } else if (screenWidth < 414) {
-      scaleFactor = 0.9; // Medium phones
+      scaleFactor = 1.0; // Medium phones (standard)
     }
     
     switch (deviceType) {
       case DeviceType.mobile:
         return isLandscape 
-          ? baseFontSize * 0.75 * scaleFactor  // Smaller in landscape to fit more content
-          : baseFontSize * 0.85 * scaleFactor; // Readable size in portrait
+          ? baseFontSize * 0.8 * scaleFactor  // Smaller in landscape to fit more content
+          : baseFontSize * 0.95 * scaleFactor; // Better readability in portrait (increased from 0.85)
       case DeviceType.tablet:
-        return baseFontSize * 0.95;
+        return baseFontSize * 0.98;
       case DeviceType.desktop:
         return baseFontSize * 1.05;
+    }
+  }
+  
+  /// Get responsive text field height for better touch targets on mobile
+  static double getResponsiveTextFieldHeight(BuildContext context) {
+    final deviceType = getDeviceType(context);
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    
+    switch (deviceType) {
+      case DeviceType.mobile:
+        return isLandscape ? 44 : 52; // Taller in portrait for easier typing
+      case DeviceType.tablet:
+        return 54;
+      case DeviceType.desktop:
+        return 56;
+    }
+  }
+  
+  /// Get responsive text field padding for comfortable typing
+  static EdgeInsets getResponsiveTextFieldPadding(BuildContext context) {
+    final deviceType = getDeviceType(context);
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    
+    switch (deviceType) {
+      case DeviceType.mobile:
+        return isLandscape
+          ? const EdgeInsets.symmetric(horizontal: 12, vertical: 12)
+          : const EdgeInsets.symmetric(horizontal: 16, vertical: 14); // More space for portrait
+      case DeviceType.tablet:
+        return const EdgeInsets.symmetric(horizontal: 16, vertical: 14);
+      case DeviceType.desktop:
+        return const EdgeInsets.symmetric(horizontal: 16, vertical: 12);
+    }
+  }
+  
+  /// Get spacing between form fields on mobile
+  static double getResponsiveFieldSpacing(BuildContext context) {
+    final deviceType = getDeviceType(context);
+    
+    switch (deviceType) {
+      case DeviceType.mobile:
+        return 18; // More spacing on mobile for readability
+      case DeviceType.tablet:
+        return 20;
+      case DeviceType.desktop:
+        return 20;
     }
   }
   

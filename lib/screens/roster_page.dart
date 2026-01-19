@@ -6,6 +6,7 @@ import '../models/employee_model.dart';
 import '../services/roster_storage.dart';
 import '../services/pdf_service.dart';
 import '../services/time_service.dart';
+import '../services/orientation_service.dart';
 import '../widgets/modern_roster_table.dart';
 import '../widgets/add_shift_dialog.dart';
 import '../widgets/global_salary_settings_dialog.dart';
@@ -39,6 +40,16 @@ class _RosterPageState extends State<RosterPage> {
     super.initState();
     _loadRosterData();
     _initWeekDates();
+    
+    // Lock to landscape when viewing the roster
+    OrientationService.lockToLandscape();
+  }
+
+  @override
+  void dispose() {
+    // Unlock orientation when leaving the roster page
+    OrientationService.unlockOrientation();
+    super.dispose();
   }
 
   Future<void> _loadRosterData() async {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/employee_model.dart';
 import '../utils/responsive_helper.dart';
+import '../services/orientation_service.dart';
 
 class AddShiftDialog extends StatefulWidget {
   final Shift? shift;
@@ -180,6 +181,10 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
   @override
   void initState() {
     super.initState();
+    
+    // Unlock orientation for comfortable editing
+    OrientationService.unlockOrientation();
+    
     startTime = widget.shift?.startTime;
     endTime = widget.shift?.endTime;
     isHoliday = widget.shift?.isHoliday ?? false;
@@ -220,6 +225,9 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
 
   @override
   void dispose() {
+    // Lock back to landscape when dialog is closed
+    OrientationService.lockToLandscape();
+    
     roleController.dispose();
     commentController.dispose();
     startTimeController.dispose();
@@ -241,8 +249,9 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
     final isMobile = ResponsiveHelper.isMobile(context);
+    final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
     final dialogWidth = isMobile ? screenWidth * 0.95 : 450.0;
-    final maxDialogHeight = screenHeight * 0.85;
+    final maxDialogHeight = isMobile && isPortrait ? screenHeight * 0.9 : screenHeight * 0.85;
 
     return AlertDialog(
       backgroundColor: Colors.white,
@@ -280,7 +289,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
       content: Container(
         width: dialogWidth,
         constraints: BoxConstraints(maxHeight: maxDialogHeight),
-        padding: EdgeInsets.symmetric(vertical: isMobile ? 8 : 16),
+        padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 16),
         decoration: const BoxDecoration(
           color: Colors.white,
         ),
@@ -332,7 +341,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                       color: Colors.grey.shade700,
                     ),
                   ),
-                  SizedBox(height: isMobile ? 10 : 8),
+                  SizedBox(height: isMobile ? 12 : 8),
                   TextField(
                     controller: holidayHoursController,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -352,11 +361,11 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                         borderSide: BorderSide(color: Colors.blue.shade600),
                       ),
                       contentPadding: EdgeInsets.symmetric(
-                        horizontal: isMobile ? 14 : 12, 
+                        horizontal: isMobile ? 16 : 12, 
                         vertical: isMobile ? 16 : 14,
                       ),
                     ),
-                    style: TextStyle(fontSize: isMobile ? 15 : 14),
+                    style: TextStyle(fontSize: isMobile ? 16 : 14),
                   ),
                   SizedBox(height: isMobile ? 6 : 4),
                   Text(
@@ -381,7 +390,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                   Text(
                     'Role (Optional)',
                     style: TextStyle(
-                      fontSize: isMobile ? 13 : 14,
+                      fontSize: isMobile ? 14 : 14,
                       fontWeight: FontWeight.w500,
                       color: Colors.grey.shade700,
                     ),
@@ -402,17 +411,17 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                       filled: true,
                       fillColor: Colors.white,
                       contentPadding: EdgeInsets.symmetric(
-                        horizontal: isMobile ? 14 : 12,
+                        horizontal: isMobile ? 16 : 12,
                         vertical: isMobile ? 16 : 16,
                       ),
                     ),
                     textInputAction: TextInputAction.next,
-                    style: TextStyle(fontSize: isMobile ? 15 : 14),
+                    style: TextStyle(fontSize: isMobile ? 16 : 14),
                   ),
                 ],
               ),
             ),
-            SizedBox(height: isMobile ? 16 : 20),
+            SizedBox(height: isMobile ? 18 : 20),
             // Time selection with enhanced input options
             Container(
               padding: EdgeInsets.all(isMobile ? 16 : 20),
@@ -562,11 +571,11 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                                   },
                                 ),
                                 contentPadding: EdgeInsets.symmetric(
-                                  horizontal: isMobile ? 12 : 12,
-                                  vertical: isMobile ? 14 : 16,
+                                  horizontal: isMobile ? 16 : 12,
+                                  vertical: isMobile ? 16 : 16,
                                 ),
                               ),
-                              style: TextStyle(fontSize: isMobile ? 15 : 14),
+                              style: TextStyle(fontSize: isMobile ? 16 : 14),
                               onChanged: (value) {
                                 _updateTimeFromInput(value, true);
                               },
@@ -619,11 +628,11 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                                   },
                                 ),
                                 contentPadding: EdgeInsets.symmetric(
-                                  horizontal: isMobile ? 12 : 12,
-                                  vertical: isMobile ? 14 : 16,
+                                  horizontal: isMobile ? 16 : 12,
+                                  vertical: isMobile ? 16 : 16,
                                 ),
                               ),
-                              style: TextStyle(fontSize: isMobile ? 15 : 14),
+                              style: TextStyle(fontSize: isMobile ? 16 : 14),
                               onChanged: (value) {
                                 _updateTimeFromInput(value, false);
                               },
@@ -698,12 +707,12 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                   Text(
                     'Comment (Optional)',
                     style: TextStyle(
-                      fontSize: isMobile ? 13 : 14,
+                      fontSize: isMobile ? 14 : 14,
                       fontWeight: FontWeight.w500,
                       color: Colors.grey.shade700,
                     ),
                   ),
-                  SizedBox(height: isMobile ? 6 : 8),
+                  SizedBox(height: isMobile ? 8 : 8),
                   TextField(
                     controller: commentController,
                     decoration: InputDecoration(
@@ -719,17 +728,17 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                       filled: true,
                       fillColor: Colors.white,
                       contentPadding: EdgeInsets.symmetric(
-                        horizontal: isMobile ? 12 : 12,
+                        horizontal: isMobile ? 16 : 12,
                         vertical: isMobile ? 14 : 16,
                       ),
                     ),
-                    style: TextStyle(fontSize: isMobile ? 14 : 14),
+                    style: TextStyle(fontSize: isMobile ? 16 : 14),
                     maxLines: 2,
                   ),
                 ],
               ),
             ),
-            SizedBox(height: isMobile ? 12 : 16),
+            SizedBox(height: isMobile ? 16 : 16),
             
             // Custom Break Time - only show for non-holiday shifts
             if (!isHoliday)
@@ -741,12 +750,12 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                     Text(
                       'Custom Break Time (Optional)',
                       style: TextStyle(
-                        fontSize: isMobile ? 13 : 14,
+                        fontSize: isMobile ? 14 : 14,
                         fontWeight: FontWeight.w500,
                         color: Colors.grey.shade700,
                       ),
                     ),
-                    SizedBox(height: isMobile ? 6 : 8),
+                    SizedBox(height: isMobile ? 8 : 8),
                     TextField(
                       controller: customBreakController,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -764,24 +773,24 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                         filled: true,
                         fillColor: Colors.white,
                         contentPadding: EdgeInsets.symmetric(
-                          horizontal: isMobile ? 12 : 12,
-                          vertical: isMobile ? 14 : 16,
+                          horizontal: isMobile ? 16 : 12,
+                          vertical: isMobile ? 16 : 16,
                         ),
                       ),
-                      style: TextStyle(fontSize: isMobile ? 15 : 14),
+                      style: TextStyle(fontSize: isMobile ? 16 : 14),
                     ),
-                    SizedBox(height: isMobile ? 4 : 6),
+                    SizedBox(height: isMobile ? 6 : 6),
                     Text(
                       'Leave empty to use automatic break calculation',
                       style: TextStyle(
-                        fontSize: isMobile ? 11 : 12,
+                        fontSize: isMobile ? 12 : 12,
                         color: Colors.grey.shade500,
                       ),
                     ),
                   ],
                 ),
               ),
-            SizedBox(height: isMobile ? 12 : 16),
+            SizedBox(height: isMobile ? 16 : 16),
             
             // Paid Break Toggle - only show for non-holiday shifts
             if (!isHoliday)
@@ -793,7 +802,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                     Text(
                       'Paid Break Setting',
                       style: TextStyle(
-                        fontSize: isMobile ? 13 : 14,
+                        fontSize: isMobile ? 14 : 14,
                         fontWeight: FontWeight.w500,
                         color: Colors.grey.shade700,
                       ),

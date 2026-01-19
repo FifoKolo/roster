@@ -6,6 +6,7 @@ import '../models/employee_model.dart';
 import '../services/irish_bank_holidays.dart';
 import '../services/roster_storage.dart';
 import '../services/time_service.dart';
+import '../services/orientation_service.dart';
 import '../screens/roster_page.dart';
 import '../widgets/employee_profile_dialog.dart';
 import '../theme/app_theme.dart';
@@ -2457,7 +2458,14 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   }
 
   Future<void> _editShift(Employee employee, String day, Shift? shift) async {
+    // Unlock orientation to allow portrait for comfortable editing
+    await OrientationService.unlockOrientation();
+    
     final editedShift = await widget.onEdit(context, shift);
+    
+    // Lock back to landscape after dialog closes
+    await OrientationService.lockToLandscape();
+    
     if (editedShift != null) {
       setState(() {
         employee.shifts[day] = editedShift;
@@ -2473,6 +2481,9 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   }
 
   void _showEmployeeProfile(Employee employee) {
+    // Unlock orientation to allow portrait for comfortable viewing/editing
+    OrientationService.unlockOrientation();
+    
     showDialog(
       context: context,
       builder: (context) => EmployeeProfileDialog(
@@ -2486,7 +2497,10 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           _notifyCurrentWeekDataChanged();
         },
       ),
-    );
+    ).then((_) {
+      // Lock back to landscape when dialog closes
+      OrientationService.lockToLandscape();
+    });
   }
 
   void _navigateToWeekRoster(String rosterName) {
