@@ -274,14 +274,20 @@ class Employee {
     
     // Calculate paid hours for each weekday shift (scheduled - breaks)
     for (final entry in weekdayShifts) {
-      final workedHours = entry.value.duration;
+      final shift = entry.value;
+      final workedHours = shift.duration;
       double shiftBreaks = 0.0;
       
-      // Calculate breaks per shift (deducted time)
-      if (workedHours >= 6.0) {
-        shiftBreaks = 0.5; // 30 minutes deducted
-      } else if (workedHours >= 4.5) {
-        shiftBreaks = 0.25; // 15 minutes deducted
+      // Always honor custom break minutes
+      if (shift.customBreakMinutes != null) {
+        shiftBreaks = shift.customBreakMinutes! / 60.0;
+      } else {
+        // Calculate automatic breaks per shift (deducted time)
+        if (workedHours >= 6.0) {
+          shiftBreaks = 0.5; // 30 minutes deducted
+        } else if (workedHours >= 4.5) {
+          shiftBreaks = 0.25; // 15 minutes deducted
+        }
       }
       
       totalPaid += workedHours - shiftBreaks; // SUBTRACT breaks
@@ -298,10 +304,17 @@ class Employee {
     
     // Calculate breaks for Sunday shift (deducted time)
     double sundayBreaks = 0.0;
-    if (workedHours >= 6.0) {
-      sundayBreaks = 0.5; // 30 minutes deducted
-    } else if (workedHours >= 4.5) {
-      sundayBreaks = 0.25; // 15 minutes deducted
+    
+    // Always honor custom break minutes
+    if (sundayShift.customBreakMinutes != null) {
+      sundayBreaks = sundayShift.customBreakMinutes! / 60.0;
+    } else {
+      // Calculate automatic breaks
+      if (workedHours >= 6.0) {
+        sundayBreaks = 0.5; // 30 minutes deducted
+      } else if (workedHours >= 4.5) {
+        sundayBreaks = 0.25; // 15 minutes deducted
+      }
     }
     
     return workedHours - sundayBreaks; // SUBTRACT breaks

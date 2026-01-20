@@ -226,13 +226,12 @@ class PdfService {
               1: pw.FlexColumnWidth(1.5), // Scheduled Hours
               2: pw.FlexColumnWidth(1.2), // Mon-Sat Break
               3: pw.FlexColumnWidth(1.2), // Sunday Break
-              4: pw.FlexColumnWidth(1.2), // Total Break Deductions
-              5: pw.FlexColumnWidth(1.2), // Paid Hours
-              6: pw.FlexColumnWidth(1.2), // Mon-Sat Paid
-              7: pw.FlexColumnWidth(1.2), // Sunday Paid
-              8: pw.FlexColumnWidth(1.3), // Holiday Hours Used
-              9: pw.FlexColumnWidth(1.5), // Accum Holiday Hours
-              10: pw.FlexColumnWidth(1.5), // Remaining Holiday Hours
+              4: pw.FlexColumnWidth(1.2), // Paid Hours
+              5: pw.FlexColumnWidth(1.2), // Mon-Sat Paid
+              6: pw.FlexColumnWidth(1.2), // Sunday Paid
+              7: pw.FlexColumnWidth(1.3), // Holiday Hours Used
+              8: pw.FlexColumnWidth(1.5), // Accum Holiday Hours
+              9: pw.FlexColumnWidth(1.5), // Remaining Holiday Hours
             },
             children: [
               // Header
@@ -243,7 +242,6 @@ class PdfService {
                   _buildTableCell('Scheduled\nHours', headerFg, bold: true),
                   _buildTableCell('Mon-Sat\nBreak', headerFg, bold: true),
                   _buildTableCell('Sunday\nBreak', headerFg, bold: true),
-                  _buildTableCell('Total\nBreak', headerFg, bold: true),
                   _buildTableCell('Paid\nHours', headerFg, bold: true),
                   _buildTableCell('Mon-Sat\nPaid', headerFg, bold: true),
                   _buildTableCell('Sunday\nPaid', headerFg, bold: true),
@@ -261,7 +259,6 @@ class PdfService {
                     _buildTableCell(e.totalScheduledHours.toStringAsFixed(2), PdfColors.black, bold: true),
                     _buildTableCell(_formatBreakTime(e.mondayToSaturdayBreakHours), PdfColors.orange, bold: true),
                     _buildTableCell(_formatBreakTime(e.sundayBreakHours), PdfColors.red, bold: true),
-                    _buildTableCell(_formatBreakTime(e.breakHours), PdfColors.red, bold: true),
                     _buildTableCell(e.totalPaidHours.toStringAsFixed(2), PdfColors.green700, bold: true),
                     _buildTableCell(e.totalMondayToSaturdayPaidHours.toStringAsFixed(2), PdfColors.blue, bold: true),
                     _buildTableCell(e.totalSundayPaidHours.toStringAsFixed(2), PdfColors.purple, bold: true),
@@ -284,7 +281,6 @@ class PdfService {
                   _buildTableCell(employees.fold(0.0, (sum, e) => sum + e.totalScheduledHours).toStringAsFixed(2), PdfColors.black, bold: true),
                   _buildTableCell(_formatBreakTime(employees.fold(0.0, (sum, e) => sum + e.mondayToSaturdayBreakHours)), PdfColors.orange, bold: true),
                   _buildTableCell(_formatBreakTime(employees.fold(0.0, (sum, e) => sum + e.sundayBreakHours)), PdfColors.red, bold: true),
-                  _buildTableCell(_formatBreakTime(employees.fold(0.0, (sum, e) => sum + e.breakHours)), PdfColors.red, bold: true),
                   _buildTableCell(employees.fold(0.0, (sum, e) => sum + e.totalPaidHours).toStringAsFixed(2), PdfColors.green700, bold: true),
                   _buildTableCell(employees.fold(0.0, (sum, e) => sum + e.totalMondayToSaturdayPaidHours).toStringAsFixed(2), PdfColors.blue, bold: true),
                   _buildTableCell(employees.fold(0.0, (sum, e) => sum + e.totalSundayPaidHours).toStringAsFixed(2), PdfColors.purple, bold: true),
@@ -317,10 +313,9 @@ class PdfService {
           pw.SizedBox(height: 4),
           pw.Text('• Grey numbers represent accumulated totals across all saved weeks', style: pw.TextStyle(fontSize: 10)),
           pw.Text('• Scheduled Hours: Total time rostered for each employee', style: pw.TextStyle(fontSize: 10, color: PdfColors.black)),
-          pw.Text('• Mon-Sat Break: 15min (≥4.5hrs) or 30min (≥6hrs) UNPAID break time per shift for Mon-Sat', style: pw.TextStyle(fontSize: 10, color: PdfColors.orange)),
+          pw.Text('• Mon-Sat Break: 15min (≥4.5hrs) or 30min (≥6hrs) UNPAID break time for Mon-Sat shifts', style: pw.TextStyle(fontSize: 10, color: PdfColors.orange)),
           pw.Text('• Sunday Break: 15min (≥4.5hrs) or 30min (≥6hrs) UNPAID break time for Sunday shifts', style: pw.TextStyle(fontSize: 10, color: PdfColors.red)),
-          pw.Text('• Total Break: Combined break deductions for the week', style: pw.TextStyle(fontSize: 10, color: PdfColors.red)),
-          pw.Text('• Paid Hours = Scheduled Hours - Total Break (for payroll)', style: pw.TextStyle(fontSize: 10, color: PdfColors.green700)),
+          pw.Text('• Paid Hours = Scheduled Hours - Breaks (for payroll)', style: pw.TextStyle(fontSize: 10, color: PdfColors.green700)),
           pw.Text('• Mon-Sat Paid: Monday through Saturday paid hours (standard rate)', style: pw.TextStyle(fontSize: 10, color: PdfColors.blue)),
           pw.Text('• Sunday Paid: Sunday paid hours (penalty/overtime rate)', style: pw.TextStyle(fontSize: 10, color: PdfColors.purple)),
           pw.Text('• Holiday Used: Hours deducted from accumulated holiday hours this roster', style: pw.TextStyle(fontSize: 10, color: PdfColors.orange)),
