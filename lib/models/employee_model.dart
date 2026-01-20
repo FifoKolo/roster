@@ -209,38 +209,11 @@ class Employee {
   }
 
   // Calculate break time based on hours worked
-  // Always processes custom breaks even if automatic breaks are disabled
-  // For custom breaks, we need to respect them regardless of global settings
+  // This getter now delegates to calculateBreakHours() to avoid double-counting
+  // Uses default settings for backward compatibility
   double get breakHours {
-    double totalBreaks = 0.0;
-    
-    // First, add all custom breaks (these are ALWAYS applied)
-    for (final shift in shifts.values) {
-      if (shift.isHoliday || shift.customBreakMinutes == null) continue;
-      totalBreaks += shift.customBreakMinutes! / 60.0;
-    }
-    
-    // Then, add automatic breaks only if automatic breaks are enabled (default true for backward compatibility)
-    // Check if ANY shift has custom break - if so, don't add automatic for those shifts
-    final shiftsWithCustomBreaks = shifts.values.where((s) => s.customBreakMinutes != null).toSet();
-    
-    for (final shift in shifts.values) {
-      if (shift.isHoliday || shiftsWithCustomBreaks.contains(shift)) continue;
-      
-      final shiftHours = shift.duration;
-      // Apply per-shift toggle default behavior (default true if not set)
-      bool shouldCalculateBreak = shift.enablePaidBreak ?? true;
-      
-      if (shouldCalculateBreak) {
-        if (shiftHours >= 6.0) {
-          totalBreaks += 0.5;
-        } else if (shiftHours >= 4.5) {
-          totalBreaks += 0.25;
-        }
-      }
-    }
-    
-    return totalBreaks;
+    // Use calculateBreakHours with defaults: automatic breaks enabled, per-shift toggle behavior
+    return calculateBreakHours(true, 'per_shift_toggle');
   }
 
   // Total scheduled hours (what appears on public schedule - no break deductions shown)
