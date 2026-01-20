@@ -334,7 +334,16 @@ class Employee {
     
     double totalBreaks = 0.0;
     for (final entry in weekdayShifts) {
-      final workedHours = entry.value.duration;
+      final shift = entry.value;
+      
+      // Always honor custom break minutes
+      if (shift.customBreakMinutes != null) {
+        totalBreaks += shift.customBreakMinutes! / 60.0;
+        continue;
+      }
+      
+      // Otherwise use automatic calculation
+      final workedHours = shift.duration;
       if (workedHours >= 6.0) {
         totalBreaks += 0.5;
       } else if (workedHours >= 4.5) {
@@ -353,6 +362,12 @@ class Employee {
     final sundayShift = shifts['Sun']; // Use 'Sun' not 'Sunday'
     if (sundayShift == null) return 0.0;
     
+    // Always honor custom break minutes
+    if (sundayShift.customBreakMinutes != null) {
+      return sundayShift.customBreakMinutes! / 60.0;
+    }
+    
+    // Otherwise use automatic calculation
     final workedHours = sundayShift.duration;
     if (workedHours >= 6.0) {
       return 0.5;
