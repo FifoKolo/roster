@@ -7,6 +7,7 @@ import '../services/roster_storage.dart';
 import '../services/pdf_service.dart';
 import '../services/time_service.dart';
 import '../services/orientation_service.dart';
+import '../utils/export_integration_helper.dart';
 import '../widgets/modern_roster_table.dart';
 import '../widgets/add_shift_dialog.dart';
 import '../widgets/global_salary_settings_dialog.dart';
@@ -343,6 +344,10 @@ class _RosterPageState extends State<RosterPage> {
             _previewPrivatePdf(employees);
           } else if (value == 'download_private') {
             _exportPrivatePdf(employees);
+          } else if (value == 'export_json') {
+            _handleExportJson();
+          } else if (value == 'export_json_pdf') {
+            _handleExportJsonAndPdf();
           }
         },
         itemBuilder: (BuildContext context) => [
@@ -383,6 +388,27 @@ class _RosterPageState extends State<RosterPage> {
                 Icon(Icons.file_download, size: 20, color: Colors.deepOrange),
                 SizedBox(width: 12),
                 Text('Download Management Report'),
+              ],
+            ),
+          ),
+          const PopupMenuDivider(),
+          const PopupMenuItem<String>(
+            value: 'export_json',
+            child: Row(
+              children: [
+                Icon(Icons.download_for_offline, size: 20, color: Colors.blue),
+                SizedBox(width: 12),
+                Text('Export JSON Data'),
+              ],
+            ),
+          ),
+          const PopupMenuItem<String>(
+            value: 'export_json_pdf',
+            child: Row(
+              children: [
+                Icon(Icons.backup, size: 20, color: Colors.purple),
+                SizedBox(width: 12),
+                Text('Export JSON + PDF'),
               ],
             ),
           ),
@@ -855,6 +881,27 @@ class _RosterPageState extends State<RosterPage> {
     return a.year == b.year &&
            a.month == b.month &&
            a.day == b.day;
+  }
+
+  /// Export JSON data only
+  Future<void> _handleExportJson() async {
+    await ExportIntegrationHelper.quickExportJson(
+      context,
+      currentWeekEmployees.isNotEmpty ? currentWeekEmployees : employees,
+      weekDates,
+      rosterName: widget.rosterName,
+    );
+  }
+
+  /// Export JSON and auto-generate PDF
+  Future<void> _handleExportJsonAndPdf() async {
+    await ExportIntegrationHelper.exportWithPdfWorkflow(
+      context,
+      currentWeekEmployees.isNotEmpty ? currentWeekEmployees : employees,
+      weekDates,
+      rosterName: widget.rosterName,
+      showSuccessMessage: true,
+    );
   }
 }
 
