@@ -229,6 +229,11 @@ class RosterStorage {
 
   /// Move a roster to trash (soft delete)
   static Future<void> moveRosterToTrash(String rosterName) async {
+    // Ensure cloud copy is removed so the roster list updates for signed-in users
+    if (_useCloud && _uid != null) {
+      await _cloud.moveRosterToTrash(rosterName);
+    }
+
     final prefs = await SharedPreferences.getInstance();
     
     // Get roster data before moving to trash
