@@ -598,8 +598,8 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
             print('Previous week button clicked for $prevWeekName');
             print('Getting roster names from RosterStorage (cloud or local)...');
             try {
-              // Use RosterStorage to check both cloud and local storage
-              final rosterNames = await RosterStorage.watchRosterNames().first;
+              // Use robust one-shot fetch with timeout + local fallback
+              final rosterNames = await RosterStorage.getRosterNamesOnce();
               print('Got roster names: ${rosterNames.join(", ")}');
               
               // Check for exact match first
@@ -660,8 +660,8 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
             print('Next week button clicked for $nextWeekName');
             print('Getting roster names from RosterStorage (cloud or local)...');
             try {
-              // Use RosterStorage to check both cloud and local storage
-              final rosterNames = await RosterStorage.watchRosterNames().first;
+              // Use robust one-shot fetch with timeout + local fallback
+              final rosterNames = await RosterStorage.getRosterNamesOnce();
               print('Got roster names: ${rosterNames.join(", ")}');
               
               // Check for exact match first

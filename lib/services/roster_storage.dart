@@ -191,6 +191,27 @@ class RosterStorage {
     return prefs.getStringList('roster_names') ?? <String>[];
   }
 
+  /// Get roster names once with cloud + local fallback. Avoids hanging on a
+  /// cloud stream that never emits by timing out and returning local names.
+  static Future<List<String>> getRosterNamesOnce({
+    Duration timeout = const Duration(seconds: 2),
+  }) async {
+    // Try cloud stream first when signed in
+    if (_useCloud && _uid != null) {
+      try {
+        final names = await _cloud.watchRosterNames().first.timeout(timeout);
+        if (names.isNotEmpty) return names..sort();
+      } catch (e) {
+        print('⚠️ getRosterNamesOnce cloud timed out/fell back: $e');
+      }
+    }
+
+    // Fallback to local storage
+    _seedNamesOnce();
+    final names = await _loadLocalRosterNames();
+    return names..sort();
+  }
+
   static Future<void> _saveLocalRosterNames(List<String> names) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList('roster_names', names);
