@@ -484,17 +484,22 @@ class RosterStorage {
     final ctrl = _rosterCtrls[rosterName];
     if (ctrl != null && !ctrl.isClosed) {
       print('🔍 Updating stream controller with ${employees.length} employees');
-      // Create a deep copy to prevent reference issues
-      final employeesCopy = employees.map((e) => Employee(
-        name: e.name,
-        shifts: Map<String, Shift>.from(e.shifts),
-        accumulatedWorkedHours: e.accumulatedWorkedHours,
-        accumulatedTotalHours: e.accumulatedTotalHours,
-        accumulatedHolidayHours: e.accumulatedHolidayHours,
-        employeeColor: e.employeeColor,
-        rosterStartDate: e.rosterStartDate,
-        rosterEndDate: e.rosterEndDate,
-      )).toList();
+      // Create a deep copy to prevent reference issues and maintain sortIndex
+      final employeesCopy = employees.asMap().entries.map((entry) {
+        final index = entry.key;
+        final e = entry.value;
+        return Employee(
+          name: e.name,
+          sortIndex: e.sortIndex > 0 ? e.sortIndex : index, // Use existing or assign from position
+          shifts: Map<String, Shift>.from(e.shifts),
+          accumulatedWorkedHours: e.accumulatedWorkedHours,
+          accumulatedTotalHours: e.accumulatedTotalHours,
+          accumulatedHolidayHours: e.accumulatedHolidayHours,
+          employeeColor: e.employeeColor,
+          rosterStartDate: e.rosterStartDate,
+          rosterEndDate: e.rosterEndDate,
+        );
+      }).toList();
       
       ctrl.add(employeesCopy);
       print('✅ Stream updated successfully');
@@ -525,9 +530,12 @@ class RosterStorage {
             .map((e) => Employee.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList();
         
+        // Sort by sortIndex to maintain insertion order
+        employees.sort((a, b) => a.sortIndex.compareTo(b.sortIndex));
+        
         print('✅ Successfully loaded ${employees.length} employees');
         for (final emp in employees) {
-          print('  - Employee: ${emp.name} with ${emp.shifts.length} shifts');
+          print('  - Employee: ${emp.name} (sortIndex=${emp.sortIndex}) with ${emp.shifts.length} shifts');
           for (final entry in emp.shifts.entries) {
             print('    - ${entry.key}: ${entry.value.formatted()}');
           }

@@ -33,10 +33,19 @@ class FirestoreService {
           .collection('users')
           .doc(_userId)
           .collection('rosters')
-          .orderBy('createdAt')
           .get();
       
-      return snapshot.docs.map((doc) => doc.id).toList();
+      // Sort by createdAt in code to avoid composite index requirement
+      final docs = snapshot.docs.toList();
+      docs.sort((a, b) {
+        final aTime = (a.data()['createdAt'] as Timestamp?)?.toDate();
+        final bTime = (b.data()['createdAt'] as Timestamp?)?.toDate();
+        // If both have createdAt, use it; otherwise preserve Firestore order
+        if (aTime != null && bTime != null) return aTime.compareTo(bTime);
+        return 0; // Keep original order if createdAt missing
+      });
+      print('🔍 getRosterNames order: ${docs.map((d) => d.id).join(", ")}');
+      return docs.map((doc) => doc.id).toList();
     } catch (e) {
       print('❌ Error getting roster names: $e');
       return [];
@@ -53,10 +62,19 @@ class FirestoreService {
         .collection('users')
         .doc(_userId)
         .collection('rosters')
-        .orderBy('createdAt')
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) => doc.id).toList();
+      // Sort by createdAt in code to avoid composite index requirement
+      final docs = snapshot.docs.toList();
+      docs.sort((a, b) {
+        final aTime = (a.data()['createdAt'] as Timestamp?)?.toDate();
+        final bTime = (b.data()['createdAt'] as Timestamp?)?.toDate();
+        // If both have createdAt, use it; otherwise preserve Firestore order (don't re-sort)
+        if (aTime != null && bTime != null) return aTime.compareTo(bTime);
+        // If one or both missing createdAt, maintain their original order
+        return 0;
+      });
+      return docs.map((doc) => doc.id).toList();
     });
   }
   
@@ -159,7 +177,7 @@ class FirestoreService {
           .collection('employees')
           .get();
       
-      return snapshot.docs
+      final employees = snapshot.docs
           .map((doc) {
             try {
               return Employee.fromJson(doc.data());
@@ -170,6 +188,10 @@ class FirestoreService {
           })
           .whereType<Employee>()
           .toList();
+      
+      // Sort by sortIndex to maintain insertion order
+      employees.sort((a, b) => a.sortIndex.compareTo(b.sortIndex));
+      return employees;
     } catch (e) {
       print('❌ Error loading roster: $e');
       return [];
@@ -190,7 +212,7 @@ class FirestoreService {
         .collection('employees')
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs
+      final employees = snapshot.docs
           .map((doc) {
             try {
               return Employee.fromJson(doc.data());
@@ -201,6 +223,10 @@ class FirestoreService {
           })
           .whereType<Employee>()
           .toList();
+      
+      // Sort by sortIndex to maintain insertion order
+      employees.sort((a, b) => a.sortIndex.compareTo(b.sortIndex));
+      return employees;
     });
   }
   

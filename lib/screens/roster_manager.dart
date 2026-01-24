@@ -112,8 +112,11 @@ class _RosterManagerState extends State<RosterManager> {
             .toList();
 
         newEmployees = cleanNames
-            .map((n) => Employee(
-                  name: n,
+            .asMap()
+            .entries
+            .map((entry) => Employee(
+                  name: entry.value,
+                  sortIndex: entry.key, // Set sortIndex based on position
                   rosterStartDate: monday,
                   rosterEndDate: sunday,
                 ))
@@ -1475,16 +1478,21 @@ class _RosterManagerState extends State<RosterManager> {
     final sourceEmployees = await RosterStorage.loadRoster(sourceRosterName);
     
     // Create employees with empty shifts and new dates
-    final copiedEmployees = sourceEmployees.map((emp) => Employee(
-      name: emp.name,
-      shifts: {}, // Empty shifts
-      employeeColor: emp.employeeColor,
-      accumulatedWorkedHours: 0.0,
-      accumulatedTotalHours: 0.0,
-      accumulatedHolidayHours: emp.accumulatedHolidayHours, // Preserve holiday hours
-      rosterStartDate: monday, // NEW: Set the selected week dates
-      rosterEndDate: sunday,
-    )).toList();
+    final copiedEmployees = sourceEmployees
+        .asMap()
+        .entries
+        .map((entry) => Employee(
+          name: entry.value.name,
+          sortIndex: entry.key, // Preserve position
+          shifts: {}, // Empty shifts
+          employeeColor: entry.value.employeeColor,
+          accumulatedWorkedHours: 0.0,
+          accumulatedTotalHours: 0.0,
+          accumulatedHolidayHours: entry.value.accumulatedHolidayHours, // Preserve holiday hours
+          rosterStartDate: monday, // NEW: Set the selected week dates
+          rosterEndDate: sunday,
+        ))
+        .toList();
     
     // Create the new roster
     await RosterStorage.createRoster(newRosterName, copiedEmployees);

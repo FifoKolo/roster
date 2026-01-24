@@ -2229,6 +2229,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
 
         final newEmployee = Employee(
           name: employee.name,
+          sortIndex: employee.sortIndex, // Preserve insertion order
           shifts: <String, Shift>{}, // Empty shifts
           accumulatedWorkedHours: carryAccumWorked,
           accumulatedTotalHours: carryAccumTotal,
@@ -2365,6 +2366,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
 
         final newEmployee = Employee(
           name: employee.name,
+          sortIndex: employee.sortIndex, // Preserve insertion order
           shifts: Map<String, Shift>.from(employeeShifts), // Copy all shifts
           accumulatedWorkedHours: carryAccumWorked,
           accumulatedTotalHours: carryAccumTotal,
@@ -2646,7 +2648,11 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
 
     setState(() {
       if (!exists) {
-        _independentEmployees.add(Employee(name: name));
+        // Add with sortIndex = current length (so it goes to the end)
+        _independentEmployees.add(Employee(
+          name: name,
+          sortIndex: _independentEmployees.length,
+        ));
         print('Staff Management: Added "$name" to ${widget.rosterName}');
         print(
             'Staff Management: Current staff count: ${_independentEmployees.length}');

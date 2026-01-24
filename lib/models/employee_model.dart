@@ -111,6 +111,7 @@ class Shift {
 class Employee {
   final String name;
   final Map<String, Shift> shifts;
+  int sortIndex; // Maintains insertion order (0 = first, 1 = second, etc.)
 
   // NEW: Accumulated totals across all saved weeks (for management tracking)
   double accumulatedWorkedHours;  // total worked hours across all weeks
@@ -139,6 +140,7 @@ class Employee {
   Employee({
     required this.name,
     Map<String, Shift>? shifts,
+    this.sortIndex = 0, // Default to 0 if not provided
     this.accumulatedWorkedHours = 0.0,
     this.accumulatedTotalHours = 0.0,
     this.accumulatedHolidayHours = 0.0,
@@ -401,6 +403,7 @@ class Employee {
   Map<String, dynamic> toJson() {
     final json = {
       'name': name,
+      'sortIndex': sortIndex,
       'shifts': shifts.map((day, shift) => MapEntry(day, shift.toJson())),
       'accumulatedWorkedHours': accumulatedWorkedHours,
       'accumulatedTotalHours': accumulatedTotalHours,
@@ -463,6 +466,7 @@ class Employee {
     
     return Employee(
     name: name,
+    sortIndex: (json['sortIndex'] as int?) ?? 0,
     shifts: shifts,
     accumulatedWorkedHours: _toDouble(json['accumulatedWorkedHours']),
     accumulatedTotalHours: _toDouble(json['accumulatedTotalHours']),
