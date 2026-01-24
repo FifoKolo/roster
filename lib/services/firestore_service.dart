@@ -33,6 +33,7 @@ class FirestoreService {
           .collection('users')
           .doc(_userId)
           .collection('rosters')
+          .orderBy('createdAt')
           .get();
       
       return snapshot.docs.map((doc) => doc.id).toList();
@@ -52,6 +53,7 @@ class FirestoreService {
         .collection('users')
         .doc(_userId)
         .collection('rosters')
+        .orderBy('createdAt')
         .snapshots()
         .map((snapshot) {
       return snapshot.docs.map((doc) => doc.id).toList();
