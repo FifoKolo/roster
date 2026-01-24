@@ -35,7 +35,7 @@ class FirestoreService {
           .collection('rosters')
           .get();
       
-      return snapshot.docs.map((doc) => doc.id).toList()..sort();
+      return snapshot.docs.map((doc) => doc.id).toList();
     } catch (e) {
       print('❌ Error getting roster names: $e');
       return [];
@@ -54,7 +54,7 @@ class FirestoreService {
         .collection('rosters')
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) => doc.id).toList()..sort();
+      return snapshot.docs.map((doc) => doc.id).toList();
     });
   }
   

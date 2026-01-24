@@ -79,8 +79,13 @@ class RosterStorage {
         .where((n) => n.isNotEmpty)
         .toSet();
 
-    // Merge saved + derived, keeping everything unique and sorted
-    final merged = <String>{...saved, ...derived}.toList()..sort();
+    // Merge saved + derived while preserving the existing order
+    final merged = List<String>.from(saved);
+    for (final name in derived) {
+      if (!merged.contains(name)) {
+        merged.add(name);
+      }
+    }
     final added = merged.length - saved.length;
 
     if (added > 0) {
@@ -200,7 +205,7 @@ class RosterStorage {
     if (_useCloud && _uid != null) {
       try {
         final names = await _cloud.watchRosterNames().first.timeout(timeout);
-        if (names.isNotEmpty) return names..sort();
+        if (names.isNotEmpty) return List<String>.from(names);
       } catch (e) {
         print('⚠️ getRosterNamesOnce cloud timed out/fell back: $e');
       }
@@ -209,7 +214,7 @@ class RosterStorage {
     // Fallback to local storage
     _seedNamesOnce();
     final names = await _loadLocalRosterNames();
-    return names..sort();
+    return List<String>.from(names);
   }
 
   static Future<void> _saveLocalRosterNames(List<String> names) async {
@@ -236,7 +241,6 @@ class RosterStorage {
     final names = await _loadLocalRosterNames();
     if (!names.contains(rosterName)) {
       names.add(rosterName);
-      names.sort();
       await _saveLocalRosterNames(names);
     }
     await _saveLocalRoster(rosterName, initialEmployees);
@@ -353,7 +357,6 @@ class RosterStorage {
     
     // Add to active roster names
     existingNames.add(restoreName);
-    existingNames.sort();
     await _saveLocalRosterNames(existingNames);
     
     // Remove from trash
