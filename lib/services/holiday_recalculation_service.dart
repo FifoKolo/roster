@@ -42,12 +42,34 @@ class HolidayRecalculationService {
       final Map<String, Map<String, double>> employeeBalances = {};
       int weeksProcessed = 0;
       int employeesUpdated = 0;
+      int? currentYear;
       
       for (final rosterName in weekRosters) {
         print('\n📊 Processing: $rosterName');
         
         // Load the roster
         final employees = await RosterStorage.loadRoster(rosterName);
+        
+        if (employees.isEmpty) {
+          print('  ⚠️ No employees found, skipping');
+          continue;
+        }
+        
+        // Detect year change by checking roster start date
+        final rosterStartDate = employees.first.rosterStartDate;
+        if (rosterStartDate != null) {
+          final rosterYear = rosterStartDate.year;
+          
+          // Check if we've crossed into a new year
+          if (currentYear != null && rosterYear != currentYear) {
+            print('  🎉 NEW YEAR DETECTED: $currentYear → $rosterYear');
+            print('  🔄 Resetting all accumulated values to 0');
+            employeeBalances.clear(); // Reset all employee balances
+          }
+          
+          currentYear = rosterYear;
+        }
+        
         bool rosterModified = false;
         
         for (final employee in employees) {
