@@ -237,9 +237,9 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
                               ),
                             ),
                             SizedBox(height: isMobile ? 12 : 8),
-                            _buildInfoRow('Holiday Hours Earned', '${widget.employee.holidayHoursEarnedThisWeek.toStringAsFixed(1)} hrs'),
+                            _buildInfoRow('Holiday Hours Earned', '${widget.employee.holidayHoursEarnedThisWeek.toStringAsFixed(2)} hrs'),
                             SizedBox(height: isMobile ? 12 : 8),
-                            _buildInfoRow('Remaining Holiday Hours', '${widget.employee.remainingAccumulatedHolidayHours.toStringAsFixed(1)} hrs'),
+                            _buildInfoRow('Remaining Holiday Hours', '${widget.employee.remainingAccumulatedHolidayHours.toStringAsFixed(2)} hrs'),
                           ],
                         ),
                       ),
@@ -625,7 +625,7 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
         style: TextStyle(fontSize: isMobile ? 14 : 15, fontWeight: FontWeight.w600),
       ),
       subtitle: Text(
-        '${value.toStringAsFixed(1)} hrs',
+        '${value.toStringAsFixed(2)} hrs',
         style: TextStyle(fontSize: isMobile ? 13 : 14, color: Colors.grey[700]),
       ),
       trailing: IconButton(
@@ -679,12 +679,12 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
           ),
           const SizedBox(height: 6),
           Text(
-            '${total.toStringAsFixed(1)} hrs',
+            '${total.toStringAsFixed(2)} hrs',
             style: TextStyle(fontSize: isMobile ? 16 : 18, fontWeight: FontWeight.bold, color: Colors.blueGrey[900]),
           ),
           const SizedBox(height: 4),
           Text(
-            'Base override: ${base.toStringAsFixed(1)} hrs • This week: ${widget.employee.totalWorkedHours.toStringAsFixed(1)} hrs',
+            'Base override: ${base.toStringAsFixed(2)} hrs • This week: ${widget.employee.totalWorkedHours.toStringAsFixed(2)} hrs',
             style: TextStyle(fontSize: isMobile ? 12 : 13, color: Colors.blueGrey[600]),
           ),
         ],
@@ -727,19 +727,19 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
           ),
           const SizedBox(height: 6),
           Text(
-            '${totalHolidayHours.toStringAsFixed(1)} hrs',
+            '${totalHolidayHours.toStringAsFixed(2)} hrs',
             style: TextStyle(fontSize: isMobile ? 16 : 18, fontWeight: FontWeight.bold, color: Colors.teal[900]),
           ),
           const SizedBox(height: 4),
           Text(
             isCustomized
-                ? 'Custom baseline: ${baseHolidayHours.toStringAsFixed(1)} hrs (fixed override)'
-                : 'Base: ${baseHolidayHours.toStringAsFixed(1)} hrs • Earned this week: ${earnedThisWeek.toStringAsFixed(1)} hrs',
+                ? 'Custom baseline: ${baseHolidayHours.toStringAsFixed(2)} hrs (fixed override)'
+                : 'Base: ${baseHolidayHours.toStringAsFixed(2)} hrs • Earned this week: ${earnedThisWeek.toStringAsFixed(2)} hrs',
             style: TextStyle(fontSize: isMobile ? 12 : 13, color: Colors.teal[600]),
           ),
           const SizedBox(height: 2),
           Text(
-            'Used this week: ${usedThisWeek.toStringAsFixed(1)} hrs • Remaining: ${remaining.toStringAsFixed(1)} hrs',
+            'Used this week: ${usedThisWeek.toStringAsFixed(2)} hrs • Remaining: ${remaining.toStringAsFixed(2)} hrs',
             style: TextStyle(fontSize: isMobile ? 12 : 13, color: Colors.teal[600]),
           ),
         ],
@@ -1172,7 +1172,7 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
     required ValueChanged<double> onSaved,
     bool isBaseHours = false,
   }) async {
-    final controller = TextEditingController(text: initialValue.toStringAsFixed(1));
+    final controller = TextEditingController(text: initialValue.toStringAsFixed(2));
     String? errorText;
     double? suggestedHolidayHours;
 

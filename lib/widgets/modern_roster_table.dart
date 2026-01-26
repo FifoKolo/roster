@@ -2218,6 +2218,11 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         final carryAccumWorked = baseAccumWorked + employee.totalWorkedHours;
         final carryAccumTotal = employee.accumulatedTotalHours + employee.totalWorkedHours;
         
+        // Validation: Accumulated hours should never decrease
+        if (carryAccumWorked < baseAccumWorked) {
+          print('⚠️ WARNING: ${employee.name} accumulated hours would decrease from $baseAccumWorked to $carryAccumWorked');
+        }
+        
         // Holiday hours: use the remaining balance from this week as the starting point for next week
         // This ensures holidays are properly deducted and earned hours are accumulated
         // remainingAccumulatedHolidayHours already includes:
@@ -2355,6 +2360,11 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         final baseAccumWorked = employee.customAccumulatedHours ?? employee.accumulatedWorkedHours;
         final carryAccumWorked = baseAccumWorked + employee.totalWorkedHours;
         final carryAccumTotal = employee.accumulatedTotalHours + employee.totalWorkedHours;
+        
+        // Validation: Accumulated hours should never decrease
+        if (carryAccumWorked < baseAccumWorked) {
+          print('⚠️ WARNING: ${employee.name} accumulated hours would decrease from $baseAccumWorked to $carryAccumWorked');
+        }
         
         // Holiday hours: use the same calculation as Fresh Roster for consistency
         // remainingAccumulatedHolidayHours already includes:

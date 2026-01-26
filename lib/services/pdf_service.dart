@@ -8,7 +8,7 @@ import 'package:intl/intl.dart';
 import '../models/employee_model.dart';
 import 'irish_bank_holidays.dart';
 
-/// Represents an employee working on a bank holiday
+/// Parameteres needed to track bank holiday work for payroll
 class BankHolidayWork {
   final String employeeName;
   final String day;
@@ -37,11 +37,10 @@ class PdfService {
     Map<String, int?>? style,
     String? rosterName,
   }) async {
-    print('📄 Building Public PDF with ${employees.length} employees');
     for (final emp in employees) {
-      print('  - ${emp.name}: ${emp.shifts.length} shifts');
+      print('  - ${emp.name}: ${emp.shifts.length} shifts');//name and shift length
       for (final shift in emp.shifts.entries) {
-        print('    - ${shift.key}: ${shift.value.toJson()}');
+        print('    - ${shift.key}: ${shift.value.toJson()}');//shift details
       }
     }
     
@@ -311,17 +310,17 @@ class PdfService {
           // Additional Notes Section
           pw.Text('NOTES:', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 4),
-          pw.Text('• Grey numbers represent accumulated totals across all saved weeks', style: pw.TextStyle(fontSize: 10)),
-          pw.Text('• Scheduled Hours: Total time rostered for each employee', style: pw.TextStyle(fontSize: 10, color: PdfColors.black)),
-          pw.Text('• Mon-Sat Break: 15min (≥4.5hrs) or 30min (≥6hrs) UNPAID break time for Mon-Sat shifts', style: pw.TextStyle(fontSize: 10, color: PdfColors.orange)),
-          pw.Text('• Sunday Break: 15min (≥4.5hrs) or 30min (≥6hrs) UNPAID break time for Sunday shifts', style: pw.TextStyle(fontSize: 10, color: PdfColors.red)),
-          pw.Text('• Paid Hours = Scheduled Hours - Breaks (for payroll)', style: pw.TextStyle(fontSize: 10, color: PdfColors.green700)),
-          pw.Text('• Mon-Sat Paid: Monday through Saturday paid hours (standard rate)', style: pw.TextStyle(fontSize: 10, color: PdfColors.blue)),
-          pw.Text('• Sunday Paid: Sunday paid hours (penalty/overtime rate)', style: pw.TextStyle(fontSize: 10, color: PdfColors.purple)),
-          pw.Text('• Holiday Used: Hours deducted from accumulated holiday hours this roster', style: pw.TextStyle(fontSize: 10, color: PdfColors.orange)),
-          pw.Text('• Accum. Holiday: Total holiday hours available per employee', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
-          pw.Text('• Remaining Holiday: Holiday hours left after this roster (negative = overused)', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
-          pw.Text('• Use PAID hours for payroll calculations and wages', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+          pw.Text('- Scheduled Hours: Total time rostered for each employee', style: pw.TextStyle(fontSize: 10, color: PdfColors.black)),
+          pw.Text('- Mon-Sat Break: 15min (>=4.5hrs) or 30min (>=6hrs) UNPAID break time for Mon-Sat shifts', style: pw.TextStyle(fontSize: 10, color: PdfColors.orange)),
+          pw.Text('- Sunday Break: 15min (>=4.5hrs) or 30min (>=6hrs) UNPAID break time for Sunday shifts', style: pw.TextStyle(fontSize: 10, color: PdfColors.red)),
+          pw.Text('- Paid Hours = Scheduled Hours - Breaks (for payroll)', style: pw.TextStyle(fontSize: 10, color: PdfColors.green700)),
+          pw.Text('- Mon-Sat Paid: Monday through Saturday paid hours (standard rate)', style: pw.TextStyle(fontSize: 10, color: PdfColors.blue)),
+          pw.Text('- Sunday Paid: Sunday paid hours (penalty/overtime rate)', style: pw.TextStyle(fontSize: 10, color: PdfColors.purple)),
+          pw.Text('- Holiday Used: Hours deducted from accumulated holiday hours this roster', style: pw.TextStyle(fontSize: 10, color: PdfColors.orange)),
+          pw.Text('- Accumulated Hrs: Cumulative paid hours from ALL weeks INCLUDING this one (should always increase)', style: pw.TextStyle(fontSize: 10, color: PdfColors.cyan)),
+          pw.Text('- Remaining Holiday: Holiday hours left after this roster (negative = overused)', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
+          pw.Text('- Total Holiday Hrs: Total holiday hours available (accumulated + earned)', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
+          pw.Text('- Use PAID hours for payroll calculations and wages', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
         ],
       ),
     );

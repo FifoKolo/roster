@@ -261,7 +261,7 @@ class _RosterTableState extends State<RosterTable> with TickerProviderStateMixin
               children: [
                 Icon(Icons.edit, size: 14, color: Colors.blue.shade600),
                 Text(
-                  '${emp.remainingAccumulatedHolidayHours.toStringAsFixed(1)} hrs',
+                  '${emp.remainingAccumulatedHolidayHours.toStringAsFixed(2)} hrs',
                   style: TextStyle(
                     fontSize: 11,
                     color: emp.remainingAccumulatedHolidayHours < 0 ? Colors.red : Colors.green.shade700,
@@ -561,8 +561,8 @@ class _RosterTableState extends State<RosterTable> with TickerProviderStateMixin
                 children: [
                   Text('Current Status:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
                   const SizedBox(height: 4),
-                  Text('Used this roster: ${emp.totalHolidayHoursUsed.toStringAsFixed(1)} hours'),
-                  Text('Remaining: ${emp.remainingAccumulatedHolidayHours.toStringAsFixed(1)} hours', 
+                  Text('Used this roster: ${emp.totalHolidayHoursUsed.toStringAsFixed(2)} hours'),
+                  Text('Remaining: ${emp.remainingAccumulatedHolidayHours.toStringAsFixed(2)} hours', 
                        style: TextStyle(color: emp.remainingAccumulatedHolidayHours < 0 ? Colors.red : Colors.green.shade700,
                                        fontWeight: FontWeight.w500)),
                 ],
