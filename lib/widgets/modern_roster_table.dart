@@ -2559,7 +2559,6 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop(); // Close delete dialog
-                Navigator.of(context).pop(); // Close employee profile dialog
                 _removeStaffMember(employeeName, false);
               },
               child: Text('Current Week Only'),
@@ -2567,7 +2566,6 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
             ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop(); // Close delete dialog
-                Navigator.of(context).pop(); // Close employee profile dialog
                 _removeStaffMember(employeeName, true);
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
@@ -2747,30 +2745,42 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   }
 
   void _removeStaffMember(String name, bool removeFromFuture) async {
-    setState(() {
-      _independentEmployees.removeWhere((emp) => emp.name == name);
-      print('Staff Management: Removed "$name" from ${widget.rosterName}');
-      print(
-          'Staff Management: Current staff count: ${_independentEmployees.length}');
-    });
+    try {
+      setState(() {
+        _independentEmployees.removeWhere((emp) => emp.name == name);
+        print('Staff Management: Removed "$name" from ${widget.rosterName}');
+        print(
+            'Staff Management: Current staff count: ${_independentEmployees.length}');
+      });
 
-    // Save current week
-    _saveCurrentWeekData();
+      // Save current week
+      await _saveCurrentWeekData();
 
-    if (removeFromFuture) {
-      await _removeStaffFromFutureWeeks(name);
+      if (removeFromFuture) {
+        await _removeStaffFromFutureWeeks(name);
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(removeFromFuture
+                ? 'Removed "$name" from current and all future weeks'
+                : 'Removed "$name" from ${widget.rosterName} only'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Error removing staff member: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error removing staff member: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
-
-    Navigator.of(context).pop();
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(removeFromFuture
-            ? 'Removed "$name" from current and all future weeks'
-            : 'Removed "$name" from ${widget.rosterName} only'),
-        backgroundColor: Colors.green,
-      ),
-    );
   }
 
   Future<void> _removeStaffFromFutureWeeks(String name) async {

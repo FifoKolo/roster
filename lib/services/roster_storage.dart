@@ -180,7 +180,7 @@ class RosterStorage {
   /// Stream roster names (cloud) or local live stream
   static Stream<List<String>> watchRosterNames() {
     if (_useCloud && _uid != null) {
-      return _cloud.watchRosterNames().handleError((_) {
+      return _cloud.watchRosterNames().map((names) => _sortRosterNames(names)).handleError((_) {
         // Fallback to local stream on error
         _seedNamesOnce();
         return <String>[];
@@ -188,12 +188,39 @@ class RosterStorage {
     }
 
     _seedNamesOnce();
-    return _namesCtrl.stream;
+    return _namesCtrl.stream.map((names) => _sortRosterNames(names));
   }
 
   static Future<List<String>> _loadLocalRosterNames() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getStringList('roster_names') ?? <String>[];
+    final names = prefs.getStringList('roster_names') ?? <String>[];
+    // Sort roster names by week number
+    return _sortRosterNames(names);
+  }
+
+  /// Sort roster names by week number (Week 1, Week 2, etc.)
+  static List<String> _sortRosterNames(List<String> names) {
+    final sorted = List<String>.from(names);
+    sorted.sort((a, b) {
+      // Extract week numbers using regex
+      final aMatch = RegExp(r'Week\s+(\d+)', caseSensitive: false).firstMatch(a);
+      final bMatch = RegExp(r'Week\s+(\d+)', caseSensitive: false).firstMatch(b);
+      
+      // If both have week numbers, sort by number
+      if (aMatch != null && bMatch != null) {
+        final aNum = int.parse(aMatch.group(1)!);
+        final bNum = int.parse(bMatch.group(1)!);
+        return aNum.compareTo(bNum);
+      }
+      
+      // If only one has a week number, put it first
+      if (aMatch != null) return -1;
+      if (bMatch != null) return 1;
+      
+      // Neither has week number, sort alphabetically
+      return a.compareTo(b);
+    });
+    return sorted;
   }
 
   /// Get roster names once with cloud + local fallback. Avoids hanging on a

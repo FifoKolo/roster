@@ -38,8 +38,8 @@ class HolidayRecalculationService {
       
       print('📋 Found ${weekRosters.length} weekly rosters to process');
       
-      // Track employee holiday balances across weeks
-      final Map<String, double> employeeHolidayBalance = {};
+      // Track employee balances across weeks
+      final Map<String, Map<String, double>> employeeBalances = {};
       int weeksProcessed = 0;
       int employeesUpdated = 0;
       
@@ -53,38 +53,73 @@ class HolidayRecalculationService {
         for (final employee in employees) {
           final employeeName = employee.name;
           
-          // Get the starting balance for this employee
-          double startingBalance;
-          if (employeeHolidayBalance.containsKey(employeeName)) {
-            // Use the ending balance from the previous week
-            startingBalance = employeeHolidayBalance[employeeName]!;
+          // Get the starting balances for this employee
+          double startingWorkedHours;
+          double startingTotalHours;
+          double startingHolidayHours;
+          
+          if (employeeBalances.containsKey(employeeName)) {
+            // Use the ending balances from the previous week
+            final prev = employeeBalances[employeeName]!;
+            startingWorkedHours = prev['worked']!;
+            startingTotalHours = prev['total']!;
+            startingHolidayHours = prev['holiday']!;
           } else {
-            // First week for this employee - use their current accumulated value
-            // But clear any custom holiday hours to avoid double-counting
-            startingBalance = employee.accumulatedHolidayHours;
-            print('  ✨ First appearance of $employeeName: starting with ${startingBalance.toStringAsFixed(2)} hrs');
+            // First week for this employee - start from zero unless they have custom values
+            startingWorkedHours = employee.customAccumulatedHours ?? 0.0;
+            startingTotalHours = 0.0;
+            startingHolidayHours = employee.customHolidayHours ?? 0.0;
+            print('  ✨ First appearance of $employeeName: starting with worked=${startingWorkedHours.toStringAsFixed(2)}, holiday=${startingHolidayHours.toStringAsFixed(2)}');
           }
           
           // Calculate this week's values
-          final earnedThisWeek = employee.totalPaidHours * 0.08;
-          final usedThisWeek = employee.totalHolidayHoursUsed;
-          final endingBalance = (startingBalance + earnedThisWeek - usedThisWeek).clamp(0.0, double.infinity);
+          final workedThisWeek = employee.totalPaidHours;
+          final earnedHolidayThisWeek = workedThisWeek * 0.08;
+          final usedHolidayThisWeek = employee.totalHolidayHoursUsed;
           
-          print('  👤 $employeeName: start=${startingBalance.toStringAsFixed(2)} + earned=${earnedThisWeek.toStringAsFixed(2)} - used=${usedThisWeek.toStringAsFixed(2)} = ${endingBalance.toStringAsFixed(2)}');
+          // Calculate ending balances
+          final endingWorkedHours = startingWorkedHours + workedThisWeek;
+          final endingTotalHours = startingTotalHours + workedThisWeek;
+          final endingHolidayHours = (startingHolidayHours + earnedHolidayThisWeek - usedHolidayThisWeek).clamp(0.0, double.infinity);
           
-          // Always update the accumulated balance to match the calculated starting balance
-          // (from previous week's ending balance)
-          if ((employee.accumulatedHolidayHours - startingBalance).abs() > 0.01) {
-            print('    ✏️  Updated accumulated: ${employee.accumulatedHolidayHours.toStringAsFixed(2)} → ${startingBalance.toStringAsFixed(2)}');
+          print('  👤 $employeeName:');
+          print('     Worked: ${startingWorkedHours.toStringAsFixed(2)} + ${workedThisWeek.toStringAsFixed(2)} = ${endingWorkedHours.toStringAsFixed(2)}');
+          print('     Holiday: ${startingHolidayHours.toStringAsFixed(2)} + ${earnedHolidayThisWeek.toStringAsFixed(2)} - ${usedHolidayThisWeek.toStringAsFixed(2)} = ${endingHolidayHours.toStringAsFixed(2)}');
+          
+          // Update the employee's accumulated values
+          bool wasUpdated = false;
+          
+          if ((employee.accumulatedWorkedHours - startingWorkedHours).abs() > 0.01) {
+            print('    ✏️  Updated worked hours: ${employee.accumulatedWorkedHours.toStringAsFixed(2)} → ${startingWorkedHours.toStringAsFixed(2)}');
+            wasUpdated = true;
+          }
+          
+          if ((employee.accumulatedTotalHours - startingTotalHours).abs() > 0.01) {
+            print('    ✏️  Updated total hours: ${employee.accumulatedTotalHours.toStringAsFixed(2)} → ${startingTotalHours.toStringAsFixed(2)}');
+            wasUpdated = true;
+          }
+          
+          if ((employee.accumulatedHolidayHours - startingHolidayHours).abs() > 0.01) {
+            print('    ✏️  Updated holiday hours: ${employee.accumulatedHolidayHours.toStringAsFixed(2)} → ${startingHolidayHours.toStringAsFixed(2)}');
+            wasUpdated = true;
+          }
+          
+          if (wasUpdated) {
             employeesUpdated++;
           }
           
-          employee.accumulatedHolidayHours = startingBalance;
+          employee.accumulatedWorkedHours = startingWorkedHours;
+          employee.accumulatedTotalHours = startingTotalHours;
+          employee.accumulatedHolidayHours = startingHolidayHours;
           employee.customHolidayHours = null; // Clear any custom overrides
           rosterModified = true;
           
-          // Store the ending balance for the next week
-          employeeHolidayBalance[employeeName] = endingBalance;
+          // Store the ending balances for the next week
+          employeeBalances[employeeName] = {
+            'worked': endingWorkedHours,
+            'total': endingTotalHours,
+            'holiday': endingHolidayHours,
+          };
         }
         
         // Always save the roster to persist the corrected balances
@@ -105,7 +140,7 @@ class HolidayRecalculationService {
         'message': 'Successfully recalculated $weeksProcessed weeks',
         'weeksProcessed': weeksProcessed,
         'employeesUpdated': employeesUpdated,
-        'finalBalances': employeeHolidayBalance,
+        'finalBalances': employeeBalances,
       };
       
     } catch (e, stackTrace) {
