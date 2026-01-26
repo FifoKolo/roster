@@ -211,7 +211,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   }
 
   // Save current week's data to our weekly storage
-  void _saveCurrentWeekData() {
+  Future<void> _saveCurrentWeekData() async {
     final weekKey = _getWeekKey(_currentWeek);
     // Removed emoji print statement
 
@@ -221,8 +221,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
 
     if (isWeekSpecificRoster) {
       // For week-specific rosters, save directly to roster storage instead of weekly data
-      // Removed emoji print statement
-      _saveToRosterStorage(); // This is async but we don't await it to keep the method sync
+      await _saveToRosterStorage();
       _notifyCurrentWeekDataChanged();
       return;
     }
@@ -243,7 +242,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     // Removed emoji print statement
 
     // Persist weekly data to storage
-    _saveWeeklyDataToStorage(widget.rosterName);
+    await _saveWeeklyDataToStorage(widget.rosterName);
 
     // Notify parent of current week data changes for PDF generation
     _notifyCurrentWeekDataChanged();
@@ -2754,7 +2753,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       });
 
       // Save current week
-      _saveCurrentWeekData();
+      await _saveCurrentWeekData();
 
       if (removeFromFuture) {
         await _removeStaffFromFutureWeeks(name);
