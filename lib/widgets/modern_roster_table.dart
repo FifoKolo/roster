@@ -2754,7 +2754,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       });
 
       // Save current week
-      await _saveCurrentWeekData();
+      _saveCurrentWeekData();
 
       if (removeFromFuture) {
         await _removeStaffFromFutureWeeks(name);
