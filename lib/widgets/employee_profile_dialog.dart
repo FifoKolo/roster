@@ -704,7 +704,8 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
   Widget _buildTotalHolidayHoursDisplay() {
     final isMobile = ResponsiveHelper.isMobile(context);
     final isCustomized = widget.employee.customHolidayHours != null;
-    final baseHolidayHours = widget.employee.customHolidayHours ?? widget.employee.accumulatedHolidayHours;
+    // Custom holiday hours is ADDITIVE to accumulated, not a replacement
+    final baseHolidayHours = widget.employee.accumulatedHolidayHours + (widget.employee.customHolidayHours ?? 0.0);
     
     print('🔍 _buildTotalHolidayHoursDisplay for ${widget.employee.name}:');
     print('   isCustomized: $isCustomized');

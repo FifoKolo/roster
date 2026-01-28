@@ -119,6 +119,8 @@ class Employee {
 
   // NEW: Accumulated holiday hours tracking
   double accumulatedHolidayHours; // total holiday hours available
+  double accumulatedHolidayHoursUsed; // total holiday hours used across all weeks
+  double accumulatedHolidayHoursEarned; // total holiday hours earned across all weeks (8% of worked hours)
 
   // NEW: per-employee color (used for name cell / default shift color)
   Color? employeeColor;
@@ -144,6 +146,8 @@ class Employee {
     this.accumulatedWorkedHours = 0.0,
     this.accumulatedTotalHours = 0.0,
     this.accumulatedHolidayHours = 0.0,
+    this.accumulatedHolidayHoursUsed = 0.0,
+    this.accumulatedHolidayHoursEarned = 0.0,
     this.employeeColor,
     this.rosterStartDate,
     this.rosterEndDate,
@@ -408,6 +412,8 @@ class Employee {
       'accumulatedWorkedHours': accumulatedWorkedHours,
       'accumulatedTotalHours': accumulatedTotalHours,
       'accumulatedHolidayHours': accumulatedHolidayHours,
+      'accumulatedHolidayHoursUsed': accumulatedHolidayHoursUsed,
+      'accumulatedHolidayHoursEarned': accumulatedHolidayHoursEarned,
       'employeeColor': employeeColor?.toARGB32(), // <- persist ARGB
       'rosterStartDate': rosterStartDate?.millisecondsSinceEpoch,
       'rosterEndDate': rosterEndDate?.millisecondsSinceEpoch,
@@ -471,6 +477,8 @@ class Employee {
     accumulatedWorkedHours: _toDouble(json['accumulatedWorkedHours']),
     accumulatedTotalHours: _toDouble(json['accumulatedTotalHours']),
     accumulatedHolidayHours: _toDouble(json['accumulatedHolidayHours']),
+    accumulatedHolidayHoursUsed: _toDouble(json['accumulatedHolidayHoursUsed']),
+    accumulatedHolidayHoursEarned: _toDouble(json['accumulatedHolidayHoursEarned']),
     employeeColor: (json['employeeColor'] is int) ? Color(json['employeeColor'] as int) : null,
     rosterStartDate: json['rosterStartDate'] != null ? DateTime.fromMillisecondsSinceEpoch(json['rosterStartDate'] as int) : null,
     rosterEndDate: json['rosterEndDate'] != null ? DateTime.fromMillisecondsSinceEpoch(json['rosterEndDate'] as int) : null,

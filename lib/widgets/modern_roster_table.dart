@@ -2214,8 +2214,15 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       for (final employee in employeeList) {
         // Carry-forward accumulated values to next week (respect custom overrides)
         final baseAccumWorked = employee.customAccumulatedHours ?? employee.accumulatedWorkedHours;
-        final carryAccumWorked = baseAccumWorked + employee.totalWorkedHours;
-        final carryAccumTotal = employee.accumulatedTotalHours + employee.totalWorkedHours;
+        // Include both worked hours AND holiday hours (paid time off) in accumulation
+        final carryAccumWorked = baseAccumWorked + employee.totalWorkedHours + employee.totalHolidayHoursUsed;
+        final carryAccumTotal = employee.accumulatedTotalHours + employee.totalWorkedHours + employee.totalHolidayHoursUsed;
+        
+        // Accumulate holiday hours used across weeks
+        final carryAccumHolidayUsed = employee.accumulatedHolidayHoursUsed + employee.totalHolidayHoursUsed;
+        
+        // Accumulate holiday hours earned across weeks (8% of paid hours)
+        final carryAccumHolidayEarned = employee.accumulatedHolidayHoursEarned + employee.holidayHoursEarnedThisWeek;
         
         // Validation: Accumulated hours should never decrease
         if (carryAccumWorked < baseAccumWorked) {
@@ -2238,6 +2245,8 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           accumulatedWorkedHours: carryAccumWorked,
           accumulatedTotalHours: carryAccumTotal,
           accumulatedHolidayHours: carryHoliday, // Use remaining balance after deductions
+          accumulatedHolidayHoursUsed: carryAccumHolidayUsed, // Cumulative holiday hours used
+          accumulatedHolidayHoursEarned: carryAccumHolidayEarned, // Cumulative holiday hours earned
           employeeColor: employee.employeeColor,
           rosterStartDate: mondayDate,
           rosterEndDate: sundayDate,
@@ -2357,8 +2366,15 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
 
         // Carry-forward accumulated values to next week (respect custom overrides)
         final baseAccumWorked = employee.customAccumulatedHours ?? employee.accumulatedWorkedHours;
-        final carryAccumWorked = baseAccumWorked + employee.totalWorkedHours;
-        final carryAccumTotal = employee.accumulatedTotalHours + employee.totalWorkedHours;
+        // Include both worked hours AND holiday hours (paid time off) in accumulation
+        final carryAccumWorked = baseAccumWorked + employee.totalWorkedHours + employee.totalHolidayHoursUsed;
+        final carryAccumTotal = employee.accumulatedTotalHours + employee.totalWorkedHours + employee.totalHolidayHoursUsed;
+        
+        // Accumulate holiday hours used across weeks
+        final carryAccumHolidayUsed = employee.accumulatedHolidayHoursUsed + employee.totalHolidayHoursUsed;
+        
+        // Accumulate holiday hours earned across weeks (8% of paid hours)
+        final carryAccumHolidayEarned = employee.accumulatedHolidayHoursEarned + employee.holidayHoursEarnedThisWeek;
         
         // Validation: Accumulated hours should never decrease
         if (carryAccumWorked < baseAccumWorked) {
@@ -2380,6 +2396,8 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           accumulatedWorkedHours: carryAccumWorked,
           accumulatedTotalHours: carryAccumTotal,
           accumulatedHolidayHours: carryHoliday,
+          accumulatedHolidayHoursUsed: carryAccumHolidayUsed, // Cumulative holiday hours used
+          accumulatedHolidayHoursEarned: carryAccumHolidayEarned, // Cumulative holiday hours earned
           employeeColor: employee.employeeColor,
           rosterStartDate: mondayDate,
           rosterEndDate: sundayDate,

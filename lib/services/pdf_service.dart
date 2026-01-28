@@ -261,15 +261,17 @@ class PdfService {
                     _buildTableCell(e.totalPaidHours.toStringAsFixed(2), PdfColors.green700, bold: true),
                     _buildTableCell(e.totalMondayToSaturdayPaidHours.toStringAsFixed(2), PdfColors.blue, bold: true),
                     _buildTableCell(e.totalSundayPaidHours.toStringAsFixed(2), PdfColors.purple, bold: true),
-                    _buildTableCell(e.totalHolidayHoursUsed.toStringAsFixed(2), PdfColors.orange, bold: true),
+                    // Display cumulative holiday hours used (across all weeks)
+                    _buildTableCell((e.accumulatedHolidayHoursUsed + e.totalHolidayHoursUsed).toStringAsFixed(2), PdfColors.orange, bold: true),
                     _buildTableCell(((e.customAccumulatedHours ?? e.accumulatedWorkedHours) + e.totalPaidHours).toStringAsFixed(2), PdfColors.cyan, bold: true),
-                    // Holiday balances: total = (accumulated + custom) + earned; remaining = total - used
-                    _buildTableCell(((e.accumulatedHolidayHours + (e.customHolidayHours ?? 0) + e.holidayHoursEarnedThisWeek - e.totalHolidayHoursUsed)).toStringAsFixed(2),
-                      (((e.accumulatedHolidayHours + (e.customHolidayHours ?? 0) + e.holidayHoursEarnedThisWeek - e.totalHolidayHoursUsed)) < 0)
+                    // Remaining Holiday: Total Earned (including custom adjustments) - Total Used
+                    _buildTableCell((((e.accumulatedHolidayHoursEarned + e.holidayHoursEarnedThisWeek) + (e.customHolidayHours ?? 0)) - (e.accumulatedHolidayHoursUsed + e.totalHolidayHoursUsed)).toStringAsFixed(2),
+                      ((((e.accumulatedHolidayHoursEarned + e.holidayHoursEarnedThisWeek) + (e.customHolidayHours ?? 0)) - (e.accumulatedHolidayHoursUsed + e.totalHolidayHoursUsed)) < 0)
                         ? PdfColors.red
                         : PdfColors.green700,
                       bold: true),
-                    _buildTableCell(((e.accumulatedHolidayHours + (e.customHolidayHours ?? 0) + e.holidayHoursEarnedThisWeek)).toStringAsFixed(2), PdfColors.cyan, bold: true),
+                    // Total Holiday Hrs: Cumulative earned (8% of all paid hours)
+                    _buildTableCell((e.accumulatedHolidayHoursEarned + e.holidayHoursEarnedThisWeek).toStringAsFixed(2), PdfColors.cyan, bold: true),
                   ],
                 ),
               // Totals row
@@ -283,17 +285,20 @@ class PdfService {
                   _buildTableCell(employees.fold(0.0, (sum, e) => sum + e.totalPaidHours).toStringAsFixed(2), PdfColors.green700, bold: true),
                   _buildTableCell(employees.fold(0.0, (sum, e) => sum + e.totalMondayToSaturdayPaidHours).toStringAsFixed(2), PdfColors.blue, bold: true),
                   _buildTableCell(employees.fold(0.0, (sum, e) => sum + e.totalSundayPaidHours).toStringAsFixed(2), PdfColors.purple, bold: true),
-                  _buildTableCell(employees.fold(0.0, (sum, e) => sum + e.totalHolidayHoursUsed).toStringAsFixed(2), PdfColors.orange, bold: true),
+                  // Display cumulative total of holiday hours used (across all weeks)
+                  _buildTableCell(employees.fold(0.0, (sum, e) => sum + e.accumulatedHolidayHoursUsed + e.totalHolidayHoursUsed).toStringAsFixed(2), PdfColors.orange, bold: true),
                   _buildTableCell(employees.fold(0.0, (sum, e) => sum + ((e.customAccumulatedHours ?? e.accumulatedWorkedHours) + e.totalPaidHours)).toStringAsFixed(2), PdfColors.cyan, bold: true),
+                        // Remaining Holiday Total: Total Earned - Total Used
                         _buildTableCell(
                           employees
-                            .fold(0.0, (sum, e) => sum + (e.accumulatedHolidayHours + (e.customHolidayHours ?? 0) + e.holidayHoursEarnedThisWeek - e.totalHolidayHoursUsed))
+                            .fold(0.0, (sum, e) => sum + (((e.accumulatedHolidayHoursEarned + e.holidayHoursEarnedThisWeek) + (e.customHolidayHours ?? 0)) - (e.accumulatedHolidayHoursUsed + e.totalHolidayHoursUsed)))
                             .toStringAsFixed(2),
                           PdfColors.green700,
                           bold: true),
+                        // Total Holiday Hrs: Total Earned across all weeks
                         _buildTableCell(
                           employees
-                            .fold(0.0, (sum, e) => sum + (e.accumulatedHolidayHours + (e.customHolidayHours ?? 0) + e.holidayHoursEarnedThisWeek))
+                            .fold(0.0, (sum, e) => sum + (e.accumulatedHolidayHoursEarned + e.holidayHoursEarnedThisWeek))
                             .toStringAsFixed(2),
                           PdfColors.cyan,
                           bold: true),
@@ -316,10 +321,10 @@ class PdfService {
           pw.Text('- Paid Hours = Scheduled Hours - Breaks (for payroll)', style: pw.TextStyle(fontSize: 10, color: PdfColors.green700)),
           pw.Text('- Mon-Sat Paid: Monday through Saturday paid hours (standard rate)', style: pw.TextStyle(fontSize: 10, color: PdfColors.blue)),
           pw.Text('- Sunday Paid: Sunday paid hours (penalty/overtime rate)', style: pw.TextStyle(fontSize: 10, color: PdfColors.purple)),
-          pw.Text('- Holiday Used: Hours deducted from accumulated holiday hours this roster', style: pw.TextStyle(fontSize: 10, color: PdfColors.orange)),
+          pw.Text('- Holiday Used: Total holiday hours taken across all weeks (cumulative)', style: pw.TextStyle(fontSize: 10, color: PdfColors.orange)),
           pw.Text('- Accumulated Hrs: Cumulative paid hours from ALL weeks INCLUDING this one (should always increase)', style: pw.TextStyle(fontSize: 10, color: PdfColors.cyan)),
-          pw.Text('- Remaining Holiday: Holiday hours left after this roster (negative = overused)', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
-          pw.Text('- Total Holiday Hrs: Total holiday hours available (accumulated + earned)', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
+          pw.Text('- Remaining Holiday: Total earned holiday hours minus total used (what\'s left to take)', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
+          pw.Text('- Total Holiday Hrs: Total holiday hours earned across all weeks (8% of all paid work)', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
           pw.Text('- Use PAID hours for payroll calculations and wages', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
         ],
       ),
