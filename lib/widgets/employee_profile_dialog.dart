@@ -262,7 +262,7 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
                             SizedBox(height: isMobile ? 12 : 8),
                             _buildAccumulatedHoursDisplay(),
                             SizedBox(height: isMobile ? 12 : 8),
-                            _buildEditableHoursRow('Total Holiday Hours', widget.employee.customHolidayHours ?? widget.employee.accumulatedHolidayHours),
+                            _buildEditableHoursRow('Total Holiday Hours Available', widget.employee.accumulatedHolidayHours + (widget.employee.customHolidayHours ?? 0.0) + widget.employee.holidayHoursEarnedThisWeek),
                             SizedBox(height: isMobile ? 12 : 8),
                             _buildTotalHolidayHoursDisplay(),
                           ],
@@ -617,6 +617,7 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
   Widget _buildEditableHoursRow(String label, double value) {
     final isMobile = ResponsiveHelper.isMobile(context);
     final isBaseHours = label.contains('Base');
+    final isHolidayHours = label.contains('Holiday');
     
     return ListTile(
       contentPadding: EdgeInsets.zero,
@@ -634,6 +635,7 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
           title: 'Set $label',
           initialValue: value,
           isBaseHours: isBaseHours,
+          isHolidayHours: isHolidayHours,
           onSaved: (newValue) {
             setState(() {
               if (isBaseHours) {
@@ -643,8 +645,15 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
                 if (widget.employee.customHolidayHours == null) {
                   widget.employee.customHolidayHours = newValue * 0.08;
                 }
+              } else if (isHolidayHours) {
+                // For holiday hours, calculate the custom adjustment needed
+                // Total = accumulated + custom + earned this week
+                // So: custom = Total - accumulated - earned this week
+                final earnedThisWeek = widget.employee.holidayHoursEarnedThisWeek;
+                final customAdjustment = newValue - widget.employee.accumulatedHolidayHours - earnedThisWeek;
+                widget.employee.customHolidayHours = customAdjustment.clamp(0.0, double.infinity);
               } else {
-                // Store custom holiday hours as an additive adjustment (do not overwrite accumulated)
+                // Other cases (fallback)
                 widget.employee.customHolidayHours = newValue;
               }
             });
@@ -703,9 +712,9 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
     print('   accumulatedHolidayHours: ${widget.employee.accumulatedHolidayHours}');
     print('   baseHolidayHours: $baseHolidayHours');
     
-    // If customized, the custom value IS the baseline and doesn't add earned hours
-    // If not customized, add earned hours to accumulated
-    final earnedThisWeek = isCustomized ? 0.0 : widget.employee.holidayHoursEarnedThisWeek;
+    // ALWAYS add earned hours (8% of paid hours) to the pool, regardless of customization
+    // The custom adjustment is just an additional amount given by management
+    final earnedThisWeek = widget.employee.holidayHoursEarnedThisWeek;
     final totalHolidayHours = baseHolidayHours + earnedThisWeek;
     final usedThisWeek = widget.employee.totalHolidayHoursUsed;
     final remaining = totalHolidayHours - usedThisWeek;
@@ -722,7 +731,7 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Total Holiday Hours (override)',
+            'Holiday Hours Summary',
             style: TextStyle(fontSize: isMobile ? 13 : 14, fontWeight: FontWeight.w600, color: Colors.teal[800]),
           ),
           const SizedBox(height: 6),
@@ -733,13 +742,13 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
           const SizedBox(height: 4),
           Text(
             isCustomized
-                ? 'Custom baseline: ${baseHolidayHours.toStringAsFixed(2)} hrs (fixed override)'
-                : 'Base: ${baseHolidayHours.toStringAsFixed(2)} hrs • Earned this week: ${earnedThisWeek.toStringAsFixed(2)} hrs',
+                ? 'Base: ${widget.employee.accumulatedHolidayHours.toStringAsFixed(2)} + Custom: ${widget.employee.customHolidayHours!.toStringAsFixed(2)} + Earned: ${earnedThisWeek.toStringAsFixed(2)} hrs'
+                : 'Base: ${widget.employee.accumulatedHolidayHours.toStringAsFixed(2)} hrs • Earned this week: ${earnedThisWeek.toStringAsFixed(2)} hrs',
             style: TextStyle(fontSize: isMobile ? 12 : 13, color: Colors.teal[600]),
           ),
           const SizedBox(height: 2),
           Text(
-            'Used this week: ${usedThisWeek.toStringAsFixed(2)} hrs • Remaining: ${remaining.toStringAsFixed(2)} hrs',
+            'Used this week: ${usedThisWeek.toStringAsFixed(2)} hrs (deducted from pool) • Remaining: ${remaining.toStringAsFixed(2)} hrs',
             style: TextStyle(fontSize: isMobile ? 12 : 13, color: Colors.teal[600]),
           ),
         ],
@@ -1171,6 +1180,7 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
     required double initialValue,
     required ValueChanged<double> onSaved,
     bool isBaseHours = false,
+    bool isHolidayHours = false,
   }) async {
     final controller = TextEditingController(text: initialValue.toStringAsFixed(2));
     String? errorText;
@@ -1193,6 +1203,7 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
                       labelText: 'Hours',
                       hintText: 'e.g. 40',
                       errorText: errorText,
+                      helperText: isHolidayHours ? 'Total available holiday hours (will subtract automatically when used)' : null,
                     ),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     autofocus: true,
