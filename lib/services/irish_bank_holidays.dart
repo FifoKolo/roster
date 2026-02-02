@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 /// 
 /// **Fixed Dates:**
 /// - New Year's Day (1 January)
+/// - February Bank Holiday (1st Monday in February, or 1 February if it falls on a Friday)
 /// - St. Patrick's Day (17 March) 
 /// - May Day (1 May)
 /// - June Holiday (1st Monday in June)
@@ -84,6 +85,14 @@ class IrishBankHolidays {
       date: _applyWeekendRule(DateTime(year, 1, 1)),
       type: BankHolidayType.fixed,
       description: "Start of the new year",
+    ));
+
+    // February Bank Holiday (1st Monday in February, or 1 February if it falls on a Friday)
+    holidays.add(BankHoliday(
+      name: "February Bank Holiday",
+      date: _getFebruaryBankHoliday(year),
+      type: BankHolidayType.moveable,
+      description: "First Monday in February (or Feb 1 if Friday)",
     ));
     
     // St. Patrick's Day (17 March)
@@ -194,6 +203,16 @@ class IrishBankHolidays {
       return date.add(const Duration(days: 1));
     }
     return date;
+  }
+
+  /// February Bank Holiday rule
+  /// First Monday in February, or 1 February if it falls on a Friday
+  static DateTime _getFebruaryBankHoliday(int year) {
+    final febFirst = DateTime(year, 2, 1);
+    if (febFirst.weekday == DateTime.friday) {
+      return febFirst;
+    }
+    return _getFirstMondayOfMonth(year, 2);
   }
   
   /// Special rule for St. Stephen's Day

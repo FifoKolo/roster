@@ -249,6 +249,7 @@ class SalaryService {
   static List<DateTime> _getIrishBankHolidays(int year) {
     return [
       DateTime(year, 1, 1),   // New Year's Day
+      _getFebruaryBankHoliday(year), // February Bank Holiday
       DateTime(year, 3, 17),  // St. Patrick's Day
       DateTime(year, 12, 25), // Christmas Day
       DateTime(year, 12, 26), // St. Stephen's Day
@@ -263,6 +264,16 @@ class SalaryService {
       // Add last Monday in October
       _getLastMondayInOctober(year),
     ];
+  }
+
+  static DateTime _getFebruaryBankHoliday(int year) {
+    final febFirst = DateTime(year, 2, 1);
+    if (febFirst.weekday == DateTime.friday) {
+      return febFirst;
+    }
+    final dayOfWeek = febFirst.weekday;
+    final daysToAdd = dayOfWeek == 1 ? 0 : 8 - dayOfWeek;
+    return febFirst.add(Duration(days: daysToAdd));
   }
 
   static DateTime _getEasterMonday(int year) {
