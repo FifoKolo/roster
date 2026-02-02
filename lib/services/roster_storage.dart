@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/employee_document.dart';
 import '../models/employee_model.dart';
 import 'firestore_service.dart';
 
@@ -435,11 +436,24 @@ class RosterStorage {
     // Create deep copies of employees with same shifts but preserve accumulated hours
     final copiedEmployees = sourceEmployees.map((emp) => Employee(
       name: emp.name,
+      sortIndex: emp.sortIndex,
       shifts: Map<String, Shift>.from(emp.shifts), // Deep copy shifts
       employeeColor: emp.employeeColor,
       accumulatedWorkedHours: emp.accumulatedWorkedHours,
       accumulatedTotalHours: emp.accumulatedTotalHours,
       accumulatedHolidayHours: emp.accumulatedHolidayHours,
+      accumulatedHolidayHoursUsed: emp.accumulatedHolidayHoursUsed,
+      accumulatedHolidayHoursEarned: emp.accumulatedHolidayHoursEarned,
+      customAccumulatedHours: emp.customAccumulatedHours,
+      customHolidayHours: emp.customHolidayHours,
+      rosterStartDate: emp.rosterStartDate,
+      rosterEndDate: emp.rosterEndDate,
+      email: emp.email,
+      contractType: emp.contractType,
+      contractPdfPath: emp.contractPdfPath,
+      contractPdfName: emp.contractPdfName,
+      contractPdfBase64: emp.contractPdfBase64,
+      documents: List<EmployeeDocument>.from(emp.documents),
     )).toList();
     
     print('✅ Created ${copiedEmployees.length} copied employees');

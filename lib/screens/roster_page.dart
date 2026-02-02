@@ -146,15 +146,24 @@ class _RosterPageState extends State<RosterPage> {
       
       final fixedEmployees = employees.map((emp) => Employee(
         name: emp.name,
+        sortIndex: emp.sortIndex,
         shifts: emp.shifts,
         accumulatedWorkedHours: emp.accumulatedWorkedHours,
         accumulatedTotalHours: emp.accumulatedTotalHours,
         accumulatedHolidayHours: emp.accumulatedHolidayHours,
+        accumulatedHolidayHoursUsed: emp.accumulatedHolidayHoursUsed,
+        accumulatedHolidayHoursEarned: emp.accumulatedHolidayHoursEarned,
         employeeColor: emp.employeeColor,
         rosterStartDate: correctMonday,
         rosterEndDate: correctSunday,
         customAccumulatedHours: emp.customAccumulatedHours,
         customHolidayHours: emp.customHolidayHours,
+        email: emp.email,
+        contractType: emp.contractType,
+        contractPdfPath: emp.contractPdfPath,
+        contractPdfName: emp.contractPdfName,
+        contractPdfBase64: emp.contractPdfBase64,
+        documents: emp.documents,
       )).toList();
       
       // Save the corrected dates back to storage
@@ -216,13 +225,24 @@ class _RosterPageState extends State<RosterPage> {
             print('  ✅ Restored accumulated values for ${emp.name}');
             return Employee(
               name: emp.name,
+              sortIndex: emp.sortIndex,
               shifts: emp.shifts,
               accumulatedWorkedHours: prevValues['worked']!,
               accumulatedTotalHours: prevValues['total']!,
               accumulatedHolidayHours: prevValues['holiday']!,
+              accumulatedHolidayHoursUsed: emp.accumulatedHolidayHoursUsed,
+              accumulatedHolidayHoursEarned: emp.accumulatedHolidayHoursEarned,
+              customAccumulatedHours: emp.customAccumulatedHours,
+              customHolidayHours: emp.customHolidayHours,
               employeeColor: emp.employeeColor,
               rosterStartDate: emp.rosterStartDate,
               rosterEndDate: emp.rosterEndDate,
+              email: emp.email,
+              contractType: emp.contractType,
+              contractPdfPath: emp.contractPdfPath,
+              contractPdfName: emp.contractPdfName,
+              contractPdfBase64: emp.contractPdfBase64,
+              documents: emp.documents,
             );
           }
           return emp;

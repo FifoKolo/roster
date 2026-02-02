@@ -2216,7 +2216,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         final baseAccumWorked = employee.customAccumulatedHours ?? employee.accumulatedWorkedHours;
         // Include both worked hours AND holiday hours (paid time off) in accumulation
         final carryAccumWorked = baseAccumWorked + employee.totalWorkedHours + employee.totalHolidayHoursUsed;
-        final carryAccumTotal = employee.accumulatedTotalHours + employee.totalWorkedHours + employee.totalHolidayHoursUsed;
+        final carryAccumTotal = baseAccumWorked + employee.totalWorkedHours + employee.totalHolidayHoursUsed;
         
         // Accumulate holiday hours used across weeks
         final carryAccumHolidayUsed = employee.accumulatedHolidayHoursUsed + employee.totalHolidayHoursUsed;
@@ -2229,14 +2229,11 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           print('⚠️ WARNING: ${employee.name} accumulated hours would decrease from $baseAccumWorked to $carryAccumWorked');
         }
         
-        // Holiday hours: use the remaining balance from this week as the starting point for next week
-        // This ensures holidays are properly deducted and earned hours are accumulated
-        // remainingAccumulatedHolidayHours already includes:
-        // - base accumulated holiday hours
-        // - customHolidayHours as an additive adjustment (if set)
-        // - holiday hours earned this week (8% of paid hours)
-        // - minus holiday hours used this week
-        final carryHoliday = employee.remainingAccumulatedHolidayHours.clamp(0.0, double.infinity);
+        // Holiday hours: Simple formula - start with current balance, add earned, subtract used
+        // accumulatedHolidayHours is the *remaining* available balance from previous week
+        // Include customHolidayHours adjustment if set (it's an additive bonus)
+        final baseHolidayBalance = employee.accumulatedHolidayHours + (employee.customHolidayHours ?? 0.0);
+        final carryHoliday = (baseHolidayBalance + employee.holidayHoursEarnedThisWeek - employee.totalHolidayHoursUsed).clamp(0.0, double.infinity);
 
         final newEmployee = Employee(
           name: employee.name,
@@ -2244,7 +2241,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           shifts: <String, Shift>{}, // Empty shifts
           accumulatedWorkedHours: carryAccumWorked,
           accumulatedTotalHours: carryAccumTotal,
-          accumulatedHolidayHours: carryHoliday, // Use remaining balance after deductions
+          accumulatedHolidayHours: carryHoliday, // Starting balance + earned - used
           accumulatedHolidayHoursUsed: carryAccumHolidayUsed, // Cumulative holiday hours used
           accumulatedHolidayHoursEarned: carryAccumHolidayEarned, // Cumulative holiday hours earned
           employeeColor: employee.employeeColor,
@@ -2368,7 +2365,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         final baseAccumWorked = employee.customAccumulatedHours ?? employee.accumulatedWorkedHours;
         // Include both worked hours AND holiday hours (paid time off) in accumulation
         final carryAccumWorked = baseAccumWorked + employee.totalWorkedHours + employee.totalHolidayHoursUsed;
-        final carryAccumTotal = employee.accumulatedTotalHours + employee.totalWorkedHours + employee.totalHolidayHoursUsed;
+        final carryAccumTotal = baseAccumWorked + employee.totalWorkedHours + employee.totalHolidayHoursUsed;
         
         // Accumulate holiday hours used across weeks
         final carryAccumHolidayUsed = employee.accumulatedHolidayHoursUsed + employee.totalHolidayHoursUsed;
@@ -2381,13 +2378,11 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           print('⚠️ WARNING: ${employee.name} accumulated hours would decrease from $baseAccumWorked to $carryAccumWorked');
         }
         
-        // Holiday hours: use the same calculation as Fresh Roster for consistency
-        // remainingAccumulatedHolidayHours already includes:
-        // - base accumulated holiday hours
-        // - customHolidayHours as an additive adjustment (if set)
-        // - holiday hours earned this week (8% of paid hours)
-        // - minus holiday hours used this week
-        final carryHoliday = employee.remainingAccumulatedHolidayHours.clamp(0.0, double.infinity);
+        // Holiday hours: Simple formula - start with current balance, add earned, subtract used
+        // accumulatedHolidayHours is the *remaining* available balance from previous week
+        // Include customHolidayHours adjustment if set (it's an additive bonus)
+        final baseHolidayBalance = employee.accumulatedHolidayHours + (employee.customHolidayHours ?? 0.0);
+        final carryHoliday = (baseHolidayBalance + employee.holidayHoursEarnedThisWeek - employee.totalHolidayHoursUsed).clamp(0.0, double.infinity);
 
         final newEmployee = Employee(
           name: employee.name,
@@ -2395,7 +2390,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           shifts: Map<String, Shift>.from(employeeShifts), // Copy all shifts
           accumulatedWorkedHours: carryAccumWorked,
           accumulatedTotalHours: carryAccumTotal,
-          accumulatedHolidayHours: carryHoliday,
+          accumulatedHolidayHours: carryHoliday, // Starting balance + earned - used
           accumulatedHolidayHoursUsed: carryAccumHolidayUsed, // Cumulative holiday hours used
           accumulatedHolidayHoursEarned: carryAccumHolidayEarned, // Cumulative holiday hours earned
           employeeColor: employee.employeeColor,
