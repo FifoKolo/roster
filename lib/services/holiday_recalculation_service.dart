@@ -99,6 +99,8 @@ class HolidayRecalculationService {
             startingHolidayEarned = 0.0;
             print('  ✨ First appearance of $employeeName: starting with worked=${startingWorkedHours.toStringAsFixed(2)}, holiday=${startingHolidayHours.toStringAsFixed(2)}');
           }
+          // Align holiday earned with starting worked hours
+          startingHolidayEarned = startingWorkedHours * 0.08;
           
           // Calculate this week's values
           final workedThisWeek = employee.totalPaidHours;
@@ -110,7 +112,7 @@ class HolidayRecalculationService {
           final endingTotalHours = startingTotalHours + workedThisWeek;
           final endingHolidayHours = (startingHolidayHours + earnedHolidayThisWeek - usedHolidayThisWeek).clamp(0.0, double.infinity);
           final endingHolidayUsed = startingHolidayUsed + usedHolidayThisWeek;
-          final endingHolidayEarned = startingHolidayEarned + earnedHolidayThisWeek;
+          final endingHolidayEarned = endingWorkedHours * 0.08;
           
           print('  👤 $employeeName:');
           print('     Worked: ${startingWorkedHours.toStringAsFixed(2)} + ${workedThisWeek.toStringAsFixed(2)} = ${endingWorkedHours.toStringAsFixed(2)}');
