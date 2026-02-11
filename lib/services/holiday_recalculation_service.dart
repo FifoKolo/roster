@@ -91,10 +91,10 @@ class HolidayRecalculationService {
             startingHolidayUsed = prev['holidayUsed'] ?? 0.0;
             startingHolidayEarned = prev['holidayEarned'] ?? 0.0;
           } else {
-            // First week for this employee - start from zero unless they have custom values
-            startingWorkedHours = employee.customAccumulatedHours ?? 0.0;
+            // First week for this employee - rebuild from zero
+            startingWorkedHours = 0.0;
             startingTotalHours = 0.0;
-            startingHolidayHours = employee.customHolidayHours ?? 0.0;
+            startingHolidayHours = 0.0;
             startingHolidayUsed = 0.0;
             startingHolidayEarned = 0.0;
             print('  ✨ First appearance of $employeeName: starting with worked=${startingWorkedHours.toStringAsFixed(2)}, holiday=${startingHolidayHours.toStringAsFixed(2)}');
@@ -151,7 +151,8 @@ class HolidayRecalculationService {
           employee.accumulatedHolidayHours = startingHolidayHours;
           employee.accumulatedHolidayHoursUsed = startingHolidayUsed;
           employee.accumulatedHolidayHoursEarned = startingHolidayEarned;
-          employee.customHolidayHours = null; // Clear any custom overrides
+          employee.customAccumulatedHours = null; // Clear any custom overrides
+          employee.customHolidayHours = null;
           rosterModified = true;
           
           // Store the ending balances for the next week

@@ -689,6 +689,7 @@ class _RosterManagerState extends State<RosterManager> {
         content: const Text(
           'This will scan all your weekly rosters and recalculate accumulated holiday hours in the correct order.\n\n'
           'This fixes any weeks that have incorrect holiday balances.\n\n'
+          'Custom accumulated/holiday overrides will be cleared so totals can rebuild from zero.\n\n'
           'This operation may take a few moments.',
         ),
         actions: [
