@@ -79,6 +79,8 @@ class HolidayRecalculationService {
           double startingWorkedHours;
           double startingTotalHours;
           double startingHolidayHours;
+          double startingHolidayUsed;
+          double startingHolidayEarned;
           
           if (employeeBalances.containsKey(employeeName)) {
             // Use the ending balances from the previous week
@@ -86,11 +88,15 @@ class HolidayRecalculationService {
             startingWorkedHours = prev['worked']!;
             startingTotalHours = prev['total']!;
             startingHolidayHours = prev['holiday']!;
+            startingHolidayUsed = prev['holidayUsed'] ?? 0.0;
+            startingHolidayEarned = prev['holidayEarned'] ?? 0.0;
           } else {
             // First week for this employee - start from zero unless they have custom values
             startingWorkedHours = employee.customAccumulatedHours ?? 0.0;
             startingTotalHours = 0.0;
             startingHolidayHours = employee.customHolidayHours ?? 0.0;
+            startingHolidayUsed = 0.0;
+            startingHolidayEarned = 0.0;
             print('  ✨ First appearance of $employeeName: starting with worked=${startingWorkedHours.toStringAsFixed(2)}, holiday=${startingHolidayHours.toStringAsFixed(2)}');
           }
           
@@ -103,6 +109,8 @@ class HolidayRecalculationService {
           final endingWorkedHours = startingWorkedHours + workedThisWeek;
           final endingTotalHours = startingTotalHours + workedThisWeek;
           final endingHolidayHours = (startingHolidayHours + earnedHolidayThisWeek - usedHolidayThisWeek).clamp(0.0, double.infinity);
+          final endingHolidayUsed = startingHolidayUsed + usedHolidayThisWeek;
+          final endingHolidayEarned = startingHolidayEarned + earnedHolidayThisWeek;
           
           print('  👤 $employeeName:');
           print('     Worked: ${startingWorkedHours.toStringAsFixed(2)} + ${workedThisWeek.toStringAsFixed(2)} = ${endingWorkedHours.toStringAsFixed(2)}');
@@ -125,6 +133,14 @@ class HolidayRecalculationService {
             print('    ✏️  Updated holiday hours: ${employee.accumulatedHolidayHours.toStringAsFixed(2)} → ${startingHolidayHours.toStringAsFixed(2)}');
             wasUpdated = true;
           }
+          if ((employee.accumulatedHolidayHoursUsed - startingHolidayUsed).abs() > 0.01) {
+            print('    ✏️  Updated holiday used: ${employee.accumulatedHolidayHoursUsed.toStringAsFixed(2)} → ${startingHolidayUsed.toStringAsFixed(2)}');
+            wasUpdated = true;
+          }
+          if ((employee.accumulatedHolidayHoursEarned - startingHolidayEarned).abs() > 0.01) {
+            print('    ✏️  Updated holiday earned: ${employee.accumulatedHolidayHoursEarned.toStringAsFixed(2)} → ${startingHolidayEarned.toStringAsFixed(2)}');
+            wasUpdated = true;
+          }
           
           if (wasUpdated) {
             employeesUpdated++;
@@ -133,6 +149,8 @@ class HolidayRecalculationService {
           employee.accumulatedWorkedHours = startingWorkedHours;
           employee.accumulatedTotalHours = startingTotalHours;
           employee.accumulatedHolidayHours = startingHolidayHours;
+          employee.accumulatedHolidayHoursUsed = startingHolidayUsed;
+          employee.accumulatedHolidayHoursEarned = startingHolidayEarned;
           employee.customHolidayHours = null; // Clear any custom overrides
           rosterModified = true;
           
@@ -141,6 +159,8 @@ class HolidayRecalculationService {
             'worked': endingWorkedHours,
             'total': endingTotalHours,
             'holiday': endingHolidayHours,
+            'holidayUsed': endingHolidayUsed,
+            'holidayEarned': endingHolidayEarned,
           };
         }
         
