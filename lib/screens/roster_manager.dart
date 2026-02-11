@@ -1486,9 +1486,13 @@ class _RosterManagerState extends State<RosterManager> {
           sortIndex: entry.key, // Preserve position
           shifts: {}, // Empty shifts
           employeeColor: entry.value.employeeColor,
-          accumulatedWorkedHours: 0.0,
-          accumulatedTotalHours: 0.0,
-          accumulatedHolidayHours: entry.value.accumulatedHolidayHours, // Preserve holiday hours
+          accumulatedWorkedHours: entry.value.accumulatedWorkedHours,
+          accumulatedTotalHours: entry.value.accumulatedTotalHours,
+          accumulatedHolidayHours: entry.value.accumulatedHolidayHours,
+          accumulatedHolidayHoursUsed: entry.value.accumulatedHolidayHoursUsed,
+          accumulatedHolidayHoursEarned: entry.value.accumulatedHolidayHoursEarned,
+          customAccumulatedHours: entry.value.customAccumulatedHours,
+          customHolidayHours: entry.value.customHolidayHours,
           rosterStartDate: monday, // NEW: Set the selected week dates
           rosterEndDate: sunday,
         ))

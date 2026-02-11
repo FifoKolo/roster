@@ -12,7 +12,6 @@ import '../utils/responsive_helper.dart';
 
 // Conditional imports for web
 import 'dart:html' as html show window;
-import 'dart:js' as js;
 
 class EmployeeProfileDialog extends StatefulWidget {
   final Employee employee;

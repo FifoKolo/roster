@@ -536,9 +536,19 @@ class RosterStorage {
           accumulatedWorkedHours: e.accumulatedWorkedHours,
           accumulatedTotalHours: e.accumulatedTotalHours,
           accumulatedHolidayHours: e.accumulatedHolidayHours,
+          accumulatedHolidayHoursUsed: e.accumulatedHolidayHoursUsed,
+          accumulatedHolidayHoursEarned: e.accumulatedHolidayHoursEarned,
           employeeColor: e.employeeColor,
           rosterStartDate: e.rosterStartDate,
           rosterEndDate: e.rosterEndDate,
+          customAccumulatedHours: e.customAccumulatedHours,
+          customHolidayHours: e.customHolidayHours,
+          email: e.email,
+          contractType: e.contractType,
+          contractPdfPath: e.contractPdfPath,
+          contractPdfName: e.contractPdfName,
+          contractPdfBase64: e.contractPdfBase64,
+          documents: List<EmployeeDocument>.from(e.documents),
         );
       }).toList();
       

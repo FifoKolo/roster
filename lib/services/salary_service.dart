@@ -179,10 +179,11 @@ class SalaryService {
       final date = weekDates[day];
       
       if (date == null) continue;
+      final isIrishBankHoliday = _isIrishBankHoliday(date);
       
       // Check for Irish bank holiday entitlement (when employee doesn't work on bank holiday)
-      if (globalSettings.enableIrishBankHolidayEntitlement && 
-          _isIrishBankHoliday(date) && 
+        if (globalSettings.enableIrishBankHolidayEntitlement && 
+          isIrishBankHoliday && 
           (shift == null || (!shift.isHoliday && shift.duration == 0))) {
         
         // Calculate 1/5th of previous week's worked hours
@@ -212,8 +213,8 @@ class SalaryService {
         sundayBonus += shiftEarnings * (profile.sundayBonusPercentage / 100);
       }
       
-      // Check for bank holiday bonus (when working on bank holiday)
-      if (shift.isHoliday) {
+      // Check for bank holiday bonus (when working on a bank holiday)
+      if (isIrishBankHoliday && !shift.isHoliday && shift.duration > 0) {
         bankHolidayBonus += shiftEarnings * (profile.bankHolidayBonusPercentage / 100);
       }
       
