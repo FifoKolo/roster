@@ -1305,6 +1305,11 @@ class _RosterManagerState extends State<RosterManager> {
           ),
           // Restore deleted rosters
           IconButton(
+            tooltip: 'Recalculate Holiday Hours',
+            icon: const Icon(Icons.auto_fix_high),
+            onPressed: _recalculateAllHolidays,
+          ),
+          IconButton(
             tooltip: 'Restore Deleted Rosters',
             icon: const Icon(Icons.restore_from_trash),
             onPressed: _showRestoreDialog,

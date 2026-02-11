@@ -137,11 +137,15 @@ class _RosterPageState extends State<RosterPage> {
     final correctMonday = week1Monday.add(Duration(days: (weekNumber - 1) * 7));
     final correctSunday = correctMonday.add(Duration(days: 6));
 
-    // Check if the stored dates are incorrect
+    // Check if the stored dates are missing or incorrect
     final storedMonday = employees.first.rosterStartDate;
-    if (storedMonday != null && storedMonday.difference(correctMonday).inDays.abs() > 0) {
+    if (storedMonday == null || storedMonday.difference(correctMonday).inDays.abs() > 0) {
       print('🔧 Fixing incorrect dates for ${widget.rosterName} (Week $weekNumber, Year $year)');
-      print('   Old: ${storedMonday.toIso8601String().split('T')[0]}');
+      if (storedMonday != null) {
+        print('   Old: ${storedMonday.toIso8601String().split('T')[0]}');
+      } else {
+        print('   Old: (missing)');
+      }
       print('   New: ${correctMonday.toIso8601String().split('T')[0]}');
       
       final fixedEmployees = employees.map((emp) => Employee(
