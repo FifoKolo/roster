@@ -187,14 +187,21 @@ class _RosterPageState extends State<RosterPage> {
       return employees; // No previous week to check
     }
 
-    // Check if any employee has suspiciously low accumulated values (all zeros)
-    final hasZeroAccumulated = employees.any((emp) => 
-      emp.accumulatedWorkedHours == 0 && 
-      emp.accumulatedTotalHours == 0 && 
-      emp.accumulatedHolidayHours == 0
-    );
+    // Check if any employee has suspiciously low accumulated values
+    final hasZeroAccumulated = employees.any((emp) =>
+        emp.accumulatedWorkedHours == 0 &&
+        emp.accumulatedTotalHours == 0 &&
+        emp.accumulatedHolidayHours == 0);
 
-    if (!hasZeroAccumulated) {
+    // Holiday-only missing scenario: worked/total are present but holiday balance is zero
+    final hasMissingHolidayAccumulated = employees.any((emp) =>
+        emp.accumulatedHolidayHours == 0 &&
+        (emp.accumulatedWorkedHours > 0 ||
+            emp.accumulatedTotalHours > 0 ||
+            emp.accumulatedHolidayHoursEarned > 0 ||
+            emp.accumulatedHolidayHoursUsed > 0));
+
+    if (!hasZeroAccumulated && !hasMissingHolidayAccumulated) {
       return employees; // Values look fine
     }
 
@@ -206,6 +213,13 @@ class _RosterPageState extends State<RosterPage> {
       final prevWeekEmployees = await RosterStorage.loadRoster(prevWeekName);
       
       if (prevWeekEmployees.isNotEmpty) {
+        final currentYear = employees.first.rosterStartDate?.year;
+        final prevYear = prevWeekEmployees.first.rosterStartDate?.year;
+        if (currentYear != null && prevYear != null && currentYear != prevYear) {
+          print('⚠️ Skipping restore across year boundary ($prevYear → $currentYear)');
+          return employees;
+        }
+
         print('🔍 Detected missing accumulated values, loaded ${prevWeekEmployees.length} employees from $prevWeekName');
         
         // Create a map of previous week's accumulated values
@@ -215,42 +229,78 @@ class _RosterPageState extends State<RosterPage> {
             'worked': prevEmp.accumulatedWorkedHours,
             'total': prevEmp.accumulatedTotalHours,
             'holiday': prevEmp.accumulatedHolidayHours,
+            'holidayUsed': prevEmp.accumulatedHolidayHoursUsed,
+            'holidayEarned': prevEmp.accumulatedHolidayHoursEarned,
           };
         }
         
         // Update employees with accumulated values from previous week
+        bool anyUpdated = false;
         final fixedEmployees = employees.map((emp) {
           final prevValues = prevAccumulated[emp.name];
-          if (prevValues != null && emp.accumulatedWorkedHours == 0) {
-            print('  ✅ Restored accumulated values for ${emp.name}');
-            return Employee(
-              name: emp.name,
-              sortIndex: emp.sortIndex,
-              shifts: emp.shifts,
-              accumulatedWorkedHours: prevValues['worked']!,
-              accumulatedTotalHours: prevValues['total']!,
-              accumulatedHolidayHours: prevValues['holiday']!,
-              accumulatedHolidayHoursUsed: emp.accumulatedHolidayHoursUsed,
-              accumulatedHolidayHoursEarned: emp.accumulatedHolidayHoursEarned,
-              customAccumulatedHours: emp.customAccumulatedHours,
-              customHolidayHours: emp.customHolidayHours,
-              employeeColor: emp.employeeColor,
-              rosterStartDate: emp.rosterStartDate,
-              rosterEndDate: emp.rosterEndDate,
-              email: emp.email,
-              contractType: emp.contractType,
-              contractPdfPath: emp.contractPdfPath,
-              contractPdfName: emp.contractPdfName,
-              contractPdfBase64: emp.contractPdfBase64,
-              documents: emp.documents,
-            );
+          if (prevValues != null) {
+            var worked = emp.accumulatedWorkedHours;
+            var total = emp.accumulatedTotalHours;
+            var holiday = emp.accumulatedHolidayHours;
+            var holidayUsed = emp.accumulatedHolidayHoursUsed;
+            var holidayEarned = emp.accumulatedHolidayHoursEarned;
+            bool updated = false;
+
+            if (worked == 0 && (prevValues['worked'] ?? 0) > 0) {
+              worked = prevValues['worked']!;
+              updated = true;
+            }
+            if (total == 0 && (prevValues['total'] ?? 0) > 0) {
+              total = prevValues['total']!;
+              updated = true;
+            }
+            if (holiday == 0 && (prevValues['holiday'] ?? 0) > 0) {
+              holiday = prevValues['holiday']!;
+              updated = true;
+            }
+            if (holidayUsed == 0 && (prevValues['holidayUsed'] ?? 0) > 0) {
+              holidayUsed = prevValues['holidayUsed']!;
+              updated = true;
+            }
+            if (holidayEarned == 0 && (prevValues['holidayEarned'] ?? 0) > 0) {
+              holidayEarned = prevValues['holidayEarned']!;
+              updated = true;
+            }
+
+            if (updated) {
+              anyUpdated = true;
+              print('  ✅ Restored accumulated values for ${emp.name}');
+              return Employee(
+                name: emp.name,
+                sortIndex: emp.sortIndex,
+                shifts: emp.shifts,
+                accumulatedWorkedHours: worked,
+                accumulatedTotalHours: total,
+                accumulatedHolidayHours: holiday,
+                accumulatedHolidayHoursUsed: holidayUsed,
+                accumulatedHolidayHoursEarned: holidayEarned,
+                customAccumulatedHours: emp.customAccumulatedHours,
+                customHolidayHours: emp.customHolidayHours,
+                employeeColor: emp.employeeColor,
+                rosterStartDate: emp.rosterStartDate,
+                rosterEndDate: emp.rosterEndDate,
+                email: emp.email,
+                contractType: emp.contractType,
+                contractPdfPath: emp.contractPdfPath,
+                contractPdfName: emp.contractPdfName,
+                contractPdfBase64: emp.contractPdfBase64,
+                documents: emp.documents,
+              );
+            }
           }
           return emp;
         }).toList();
         
         // Save the fixed values back to storage
-        await RosterStorage.saveRoster(widget.rosterName, fixedEmployees);
-        print('💾 Saved restored accumulated values to ${widget.rosterName}');
+        if (anyUpdated) {
+          await RosterStorage.saveRoster(widget.rosterName, fixedEmployees);
+          print('💾 Saved restored accumulated values to ${widget.rosterName}');
+        }
         
         return fixedEmployees;
       }

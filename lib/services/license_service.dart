@@ -107,9 +107,9 @@ class LicenseService {
 📱 DEMO MODE
 ───────────
 You're using the demo version with limited features:
-• Max ${maxStaffInDemo} staff members
-• Max ${maxRostersInDemo} rosters
-• Max ${maxWeeksInDemo} weeks per roster
+• Max $maxStaffInDemo staff members
+• Max $maxRostersInDemo rosters
+• Max $maxWeeksInDemo weeks per roster
 
 Purchase the full app to unlock unlimited features!
 ''';
@@ -133,7 +133,7 @@ Purchased on: ${purchaseDate?.toString().split('.')[0] ?? 'Unknown'}
     return '''
 🎉 Demo Limit Reached!
 
-You've reached the ${limitType} limit in demo mode.
+You've reached the $limitType limit in demo mode.
 
 Upgrade to the full app to enjoy:
 ✓ Unlimited staff members

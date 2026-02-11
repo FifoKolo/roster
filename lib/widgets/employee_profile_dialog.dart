@@ -881,7 +881,7 @@ class _EmployeeProfileDialogState extends State<EmployeeProfileDialog> {
                         onTap: () => Navigator.of(context).pop(type),
                       ),
                     );
-                  }).toList(),
+                  }),
                 ],
               ),
             ),

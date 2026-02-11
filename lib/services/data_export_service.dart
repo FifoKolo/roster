@@ -62,7 +62,7 @@ class DataExportService {
         'shifts': Map.fromEntries(
           days.map((day) => MapEntry(
                 day,
-                employee.shifts[day]?.toJson() ?? null,
+                employee.shifts[day]?.toJson(),
               )),
         ),
         'hours': {
