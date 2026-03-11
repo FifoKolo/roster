@@ -67,6 +67,50 @@ void main() async {
   runApp(RosterApp(localOnly: localOnly));
 }
 
+/// Slightly damps touch scrolling momentum on mobile for easier control.
+class GentleMobileScrollPhysics extends ScrollPhysics {
+  const GentleMobileScrollPhysics({super.parent});
+
+  static const double _dragDamping = 0.82;
+  static const double _carriedMomentumFactor = 0.12;
+  static const double _maxFling = 3200;
+
+  @override
+  GentleMobileScrollPhysics applyTo(ScrollPhysics? ancestor) {
+    return GentleMobileScrollPhysics(parent: buildParent(ancestor));
+  }
+
+  @override
+  double applyPhysicsToUserOffset(ScrollMetrics position, double offset) {
+    final adjustedOffset = offset * _dragDamping;
+    return super.applyPhysicsToUserOffset(position, adjustedOffset);
+  }
+
+  @override
+  double carriedMomentum(double existingVelocity) {
+    return existingVelocity * _carriedMomentumFactor;
+  }
+
+  @override
+  double get maxFlingVelocity => _maxFling;
+}
+
+class GentleMobileScrollBehavior extends MaterialScrollBehavior {
+  const GentleMobileScrollBehavior();
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) {
+    final base = super.getScrollPhysics(context);
+    final platform = getPlatform(context);
+
+    if (platform == TargetPlatform.android || platform == TargetPlatform.iOS) {
+      return const GentleMobileScrollPhysics().applyTo(base);
+    }
+
+    return base;
+  }
+}
+
 class RosterApp extends StatelessWidget {
   const RosterApp({super.key, this.localOnly = false});
 
@@ -78,6 +122,7 @@ class RosterApp extends StatelessWidget {
     return MaterialApp(
       title: 'Roster App',
       debugShowCheckedModeBanner: false, // Remove debug banner
+      scrollBehavior: const GentleMobileScrollBehavior(),
       theme: ThemeData(
         useMaterial3: true,
         // Apply consistent color scheme

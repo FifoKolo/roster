@@ -371,6 +371,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
             children: [
               _buildHeader(),
               _buildWeekNavigation(),
+              if (isMobile) _buildMobileQuickActions(),
               _buildDayHeaders(),
               _buildRosterContent(),
             ],
@@ -427,12 +428,16 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   }
 
   Widget _buildWeekNavigation() {
+    final isMobile = ResponsiveHelper.isMobile(context);
     // Check if this is a week-specific roster (like "Week 45", "Week 46", etc.)
     final isWeekSpecificRoster =
         RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 10 : 20,
+        vertical: isMobile ? 10 : 16,
+      ),
       color: _white,
       child: Row(
         children: [
@@ -482,24 +487,119 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     );
   }
 
+  Widget _buildMobileQuickActions() {
+    final hasActionState = _copyModeActive || _moveModeActive || _hasClipboard();
+    final statusText = _copyModeActive
+        ? 'Copy mode: select cells, then tap Apply.'
+        : _moveModeActive
+            ? 'Move mode: tap destination cell.'
+            : _hasClipboard()
+                ? 'Copied shift ready: tap a cell to paste.'
+                : 'Tip: long-press a shift for quick actions.';
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _primaryBlue.withOpacity(0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            statusText,
+            style: TextStyle(
+              fontSize: 12,
+              color: hasActionState ? _primaryBlue : _darkGray,
+              fontWeight: hasActionState ? FontWeight.w600 : FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (widget.onAddStaff != null)
+                ElevatedButton.icon(
+                  onPressed: widget.onAddStaff,
+                  icon: const Icon(Icons.person_add_alt_1, size: 18),
+                  label: const Text('Add Staff'),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(120, 42),
+                  ),
+                ),
+              if (_copyModeActive)
+                ElevatedButton.icon(
+                  onPressed: _selectedCellsForPaste.isEmpty ? null : _applyCopyMode,
+                  icon: const Icon(Icons.check, size: 18),
+                  label: Text('Apply (${_selectedCellsForPaste.length})'),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(120, 42),
+                    backgroundColor: Colors.green.shade600,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              if (_copyModeActive)
+                OutlinedButton.icon(
+                  onPressed: _cancelCopyMode,
+                  icon: const Icon(Icons.close, size: 18),
+                  label: const Text('Cancel Copy'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(128, 42),
+                  ),
+                ),
+              if (_moveModeActive)
+                OutlinedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _moveModeActive = false;
+                      _moveSourceEmployee = null;
+                      _moveSourceDay = null;
+                      _clipboardShift = null;
+                    });
+                  },
+                  icon: const Icon(Icons.cancel, size: 18),
+                  label: const Text('Cancel Move'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(126, 42),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildNavButton(String text, VoidCallback onPressed) {
+    final isMobile = ResponsiveHelper.isMobile(context);
     return ElevatedButton(
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
         backgroundColor: _primaryBlue.withOpacity(0.1),
         foregroundColor: _primaryBlue,
         elevation: 0,
+        minimumSize: Size(0, isMobile ? 42 : 36),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
           side: BorderSide(color: _primaryBlue.withOpacity(0.3)),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 14 : 16,
+          vertical: isMobile ? 9 : 8,
+        ),
       ),
-      child: Text(text),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: isMobile ? 13 : 14),
+      ),
     );
   }
 
   Widget _buildWeekSpecificNavigation() {
+    final isMobile = ResponsiveHelper.isMobile(context);
     // Extract current week number from roster name (no year)
     final weekMatch = RegExp(r'Week (\d+)').firstMatch(widget.rosterName);
     final currentWeekNumber =
@@ -565,11 +665,14 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         ? 'Week ${nextWeekNumber - 52}' 
         : (nextYear != currentYear ? 'Week $nextWeekNumber $nextYear' : 'Week $nextWeekNumber');
 
-    return Row(
+    final navRow = Row(
       children: [
         // Current week indicator
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 14 : 16,
+            vertical: isMobile ? 10 : 8,
+          ),
           decoration: BoxDecoration(
             color: _primaryBlue.withOpacity(0.1),
             borderRadius: BorderRadius.circular(8),
@@ -583,6 +686,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                 style: TextStyle(
                   color: _primaryBlue,
                   fontWeight: FontWeight.w600,
+                  fontSize: isMobile ? 14 : 13,
                 ),
               ),
             ],
@@ -635,18 +739,25 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
             backgroundColor: _primaryBlue.withOpacity(0.1),
             foregroundColor: _primaryBlue,
             elevation: 0,
+            minimumSize: Size(0, isMobile ? 42 : 34),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
               side: BorderSide(color: _primaryBlue.withOpacity(0.3)),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 14 : 12,
+              vertical: isMobile ? 8 : 6,
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.add_circle_outline, size: 14),
+              Icon(Icons.add_circle_outline, size: isMobile ? 16 : 14),
               const SizedBox(width: 4),
-              Text('◄ $prevWeekName', style: const TextStyle(fontSize: 12)),
+              Text(
+                '◄ $prevWeekName',
+                style: TextStyle(fontSize: isMobile ? 13 : 12),
+              ),
             ],
           ),
         ),
@@ -697,30 +808,46 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
             backgroundColor: _primaryBlue.withOpacity(0.1),
             foregroundColor: _primaryBlue,
             elevation: 0,
+            minimumSize: Size(0, isMobile ? 42 : 34),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
               side: BorderSide(color: _primaryBlue.withOpacity(0.3)),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 14 : 12,
+              vertical: isMobile ? 8 : 6,
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.add_circle_outline, size: 14),
+              Icon(Icons.add_circle_outline, size: isMobile ? 16 : 14),
               const SizedBox(width: 4),
-              Text('$nextWeekName ►', style: const TextStyle(fontSize: 12)),
+              Text(
+                '$nextWeekName ►',
+                style: TextStyle(fontSize: isMobile ? 13 : 12),
+              ),
             ],
           ),
         ),
       ],
     );
+
+    if (isMobile) {
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: navRow,
+      );
+    }
+
+    return navRow;
   }
 
   // Tips removed per request
 
   Widget _buildDayHeaders() {
     final isMobile = ResponsiveHelper.isMobile(context);
-    final employeeNameWidth = isMobile ? 120.0 : 180.0;
+    final employeeNameWidth = isMobile ? 140.0 : 180.0;
     
     return Container(
       color: _white,
@@ -780,9 +907,9 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       child: Column(
         children: [
           Text(
-            isMobile ? day.substring(0, 1) : day, // Show only first letter on mobile
+            isMobile ? day.substring(0, 2) : day,
             style: TextStyle(
-              fontSize: isMobile ? 11 : 16,
+              fontSize: isMobile ? 12 : 16,
               fontWeight: FontWeight.w600,
               color: isBankHoliday ? Colors.red : _primaryBlue,
             ),
@@ -794,7 +921,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                 ? '${date.day}' // Just day number on mobile
                 : '${date.day}${_getOrdinalSuffix(date.day)} ${_getMonthAbbr(date.month)}',
               style: TextStyle(
-                fontSize: isMobile ? 9 : 12,
+                fontSize: isMobile ? 10 : 12,
                 color: isBankHoliday ? Colors.red : _darkGray,
               ),
             ),
@@ -837,7 +964,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   Widget _buildEmployeeRow(Employee employee, int index) {
     final isEvenRow = index % 2 == 0;
     final isMobile = ResponsiveHelper.isMobile(context);
-    final employeeNameWidth = isMobile ? 120.0 : 180.0;
+    final employeeNameWidth = isMobile ? 140.0 : 180.0;
 
     return Container(
       padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 20),
@@ -874,9 +1001,9 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
 
   Widget _buildEmployeeInfo(Employee employee) {
     final isMobile = ResponsiveHelper.isMobile(context);
-    final avatarRadius = isMobile ? 10.0 : 12.0;
-    final nameFontSize = isMobile ? 11.0 : 14.0;
-    final hoursFontSize = isMobile ? 9.0 : 12.0;
+    final avatarRadius = isMobile ? 12.0 : 12.0;
+    final nameFontSize = isMobile ? 12.0 : 14.0;
+    final hoursFontSize = isMobile ? 10.0 : 12.0;
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -896,7 +1023,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                 ),
               ),
             ),
-            SizedBox(width: isMobile ? 4 : 8),
+            SizedBox(width: isMobile ? 6 : 8),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -921,10 +1048,10 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                 ],
               ),
             ),
-            // Delete button - compact size
+            // Larger mobile tap target for delete action
             SizedBox(
-              width: isMobile ? 24 : 28,
-              height: isMobile ? 24 : 28,
+              width: isMobile ? 40 : 32,
+              height: isMobile ? 40 : 32,
               child: IconButton(
                 onPressed: () {
                   print('🗑️ Delete button clicked for ${employee.name}');
@@ -932,21 +1059,29 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                 },
                 icon: const Icon(Icons.delete_outline),
                 tooltip: 'Remove ${employee.name}',
-                iconSize: isMobile ? 14 : 16,
+                iconSize: isMobile ? 20 : 16,
                 color: Colors.red,
-                padding: EdgeInsets.zero,
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.red.withOpacity(0.08),
+                  padding: EdgeInsets.zero,
+                ),
               ),
             ),
           ],
         ),
         const SizedBox(height: 4),
-        GestureDetector(
+        InkWell(
           onTap: () => _showEmployeeProfile(employee),
-          child: Text(
-            'View profile',
-            style: TextStyle(
-              fontSize: 12,
-              color: _primaryBlue,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+            child: Text(
+              'View profile',
+              style: TextStyle(
+                fontSize: isMobile ? 13 : 12,
+                color: _primaryBlue,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ),
@@ -1419,7 +1554,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                                   onTap: () => _activateCopyMode(shift),
                                   tooltip: 'Quick Copy',
                                 ),
-                                const SizedBox(width: 2),
+                                SizedBox(width: ResponsiveHelper.isMobile(context) ? 6 : 2),
                                 _buildQuickActionButton(
                                   icon: Icons.delete_outline,
                                   onTap: () =>
@@ -1449,21 +1584,27 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     required String tooltip,
     bool isDestructive = false,
   }) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final iconSize = isMobile ? 18.0 : 12.0;
+    final tapSize = isMobile ? 38.0 : 18.0;
+
     return Tooltip(
       message: tooltip,
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.all(2),
+          width: tapSize,
+          height: tapSize,
+          alignment: Alignment.center,
           decoration: BoxDecoration(
             color: isDestructive
                 ? Colors.red.withOpacity(0.1)
                 : _primaryBlue.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(isMobile ? 10 : 4),
           ),
           child: Icon(
             icon,
-            size: 12,
+            size: iconSize,
             color: isDestructive ? Colors.red : _primaryBlue,
           ),
         ),
@@ -1473,6 +1614,56 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
 
   void _showQuickActions(
       BuildContext context, Employee employee, String day, Shift shift) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+
+    if (isMobile) {
+      showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        builder: (sheetContext) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(Icons.edit, color: _primaryBlue),
+                title: const Text('Edit shift'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _editShift(employee, day, shift);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.copy, color: _primaryBlue),
+                title: const Text('Copy shift'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _copyShiftToClipboard(employee, day, shift);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.content_cut, color: Colors.orange),
+                title: const Text('Move shift', style: TextStyle(color: Colors.orange)),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _cutShiftForMove(employee, day);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text('Delete shift', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _confirmDeleteShift(employee, day, shift);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      );
+      return;
+    }
+
     final RenderBox renderBox = context.findRenderObject() as RenderBox;
     final position = renderBox.localToGlobal(Offset.zero);
 
