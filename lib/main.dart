@@ -21,6 +21,7 @@ import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 import 'screens/roster_manager.dart';
@@ -207,6 +208,8 @@ class _SignInSignUpPageState extends State<SignInSignUpPage> {
     try {
       if (isLogin) {
         await AuthService.instance.signIn(emailCtl.text, passCtl.text);
+        // Let the platform remember credentials for next sign-in.
+        TextInput.finishAutofillContext(shouldSave: true);
         AuthService.instance.clearOfflineOverride();
         await RosterStorage.syncLocalToCloud();
         // StreamBuilder will automatically rebuild and show roster
@@ -222,6 +225,7 @@ class _SignInSignUpPageState extends State<SignInSignUpPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Verification email sent')),
           );
+          TextInput.finishAutofillContext(shouldSave: true);
           // StreamBuilder will automatically rebuild and show roster
         }
       }
@@ -282,66 +286,84 @@ class _SignInSignUpPageState extends State<SignInSignUpPage> {
           constraints: const BoxConstraints(maxWidth: 420),
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: emailCtl,
-                  keyboardType: TextInputType.emailAddress,
-                  onChanged: (_) => setState(() {}),
-                  decoration: const InputDecoration(labelText: 'Email'),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: passCtl,
-                  onChanged: (_) => setState(() {}),
-                  decoration: const InputDecoration(
-                    labelText: 'Password (min 6 chars)',
+            child: AutofillGroup(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: emailCtl,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    autofillHints: const [AutofillHints.email, AutofillHints.username],
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(labelText: 'Email'),
                   ),
-                  obscureText: true,
-                ),
-                if (!isLogin) ...[
                   const SizedBox(height: 8),
                   TextField(
-                    controller: confirmCtl,
+                    controller: passCtl,
+                    textInputAction: isLogin ? TextInputAction.done : TextInputAction.next,
+                    autofillHints: isLogin
+                        ? const [AutofillHints.password]
+                        : const [AutofillHints.newPassword],
                     onChanged: (_) => setState(() {}),
+                    onSubmitted: (_) {
+                      if (canSubmit) _submit();
+                    },
                     decoration: const InputDecoration(
-                      labelText: 'Confirm Password',
+                      labelText: 'Password (min 6 chars)',
                     ),
                     obscureText: true,
                   ),
+                  if (!isLogin) ...[
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: confirmCtl,
+                      textInputAction: TextInputAction.next,
+                      autofillHints: const [AutofillHints.newPassword],
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: 'Confirm Password',
+                      ),
+                      obscureText: true,
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: nameCtl,
+                      textInputAction: TextInputAction.done,
+                      autofillHints: const [AutofillHints.name],
+                      onChanged: (_) => setState(() {}),
+                      onSubmitted: (_) {
+                        if (canSubmit) _submit();
+                      },
+                      decoration: const InputDecoration(labelText: 'Name (optional)'),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  if (error != null) Text(error!, style: const TextStyle(color: Colors.red)),
                   const SizedBox(height: 8),
-                  TextField(
-                    controller: nameCtl,
-                    onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(labelText: 'Name (optional)'),
+                  ElevatedButton(
+                    onPressed: canSubmit ? _submit : null,
+                    child: Text(busy ? 'Please wait...' : (isLogin ? 'Sign In' : 'Sign Up')),
                   ),
+                  const SizedBox(height: 8),
+                  OutlinedButton(
+                    onPressed: busy ? null : () {
+                      AuthService.instance.goOffline();
+                    },
+                    child: const Text('Continue without account'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: () => setState(() {
+                      isLogin = !isLogin;
+                      error = null;
+                    }),
+                    child: Text(isLogin ? 'Create account' : 'Have an account? Sign in'),
+                  ),
+                  if (isLogin)
+                    TextButton(onPressed: _reset, child: const Text('Forgot Password')),
                 ],
-                const SizedBox(height: 12),
-                if (error != null) Text(error!, style: const TextStyle(color: Colors.red)),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: canSubmit ? _submit : null,
-                  child: Text(busy ? 'Please wait...' : (isLogin ? 'Sign In' : 'Sign Up')),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton(
-                  onPressed: busy ? null : () {
-                    AuthService.instance.goOffline();
-                  },
-                  child: const Text('Continue without account'),
-                ),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: () => setState(() {
-                    isLogin = !isLogin;
-                    error = null;
-                  }),
-                  child: Text(isLogin ? 'Create account' : 'Have an account? Sign in'),
-                ),
-                if (isLogin)
-                  TextButton(onPressed: _reset, child: const Text('Forgot Password')),
-              ],
+              ),
             ),
           ),
         ),
