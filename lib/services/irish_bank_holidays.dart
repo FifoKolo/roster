@@ -103,12 +103,12 @@ class IrishBankHolidays {
       description: "Ireland's national day",
     ));
     
-    // May Day (1 May)
+    // May Day (first Monday in May)
     holidays.add(BankHoliday(
       name: "May Day",
-      date: _applyWeekendRule(DateTime(year, 5, 1)),
-      type: BankHolidayType.fixed,
-      description: "International Workers' Day",
+      date: _getFirstMondayOfMonth(year, 5),
+      type: BankHolidayType.moveable,
+      description: "First Monday in May (May Day)",
     ));
     
     // June Holiday (1st Monday in June)
