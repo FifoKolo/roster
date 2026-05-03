@@ -162,6 +162,19 @@ class Employee {
   }) : shifts = shifts ?? {},
        documents = documents ?? [];
 
+  /// Renumbers [sortIndex] to 0…n−1 in stable order (by current sortIndex).
+  /// Returns true if any value changed (e.g. gaps after someone was removed).
+  static bool compactSortIndices(List<Employee> employees) {
+    if (employees.isEmpty) return false;
+    employees.sort((a, b) => a.sortIndex.compareTo(b.sortIndex));
+    var changed = false;
+    for (var i = 0; i < employees.length; i++) {
+      if (employees[i].sortIndex != i) changed = true;
+      employees[i].sortIndex = i;
+    }
+    return changed;
+  }
+
   double get totalWorkedHours {
     return shifts.values.fold(0, (sum, shift) => sum + shift.duration);
   }

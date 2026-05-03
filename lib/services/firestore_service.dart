@@ -189,8 +189,9 @@ class FirestoreService {
           .whereType<Employee>()
           .toList();
       
-      // Sort by sortIndex to maintain insertion order
+      // Sort by sortIndex to maintain insertion order, then close numbering gaps
       employees.sort((a, b) => a.sortIndex.compareTo(b.sortIndex));
+      Employee.compactSortIndices(employees);
       return employees;
     } catch (e) {
       print('❌ Error loading roster: $e');
@@ -224,8 +225,9 @@ class FirestoreService {
           .whereType<Employee>()
           .toList();
       
-      // Sort by sortIndex to maintain insertion order
+      // Sort by sortIndex to maintain insertion order, then close numbering gaps
       employees.sort((a, b) => a.sortIndex.compareTo(b.sortIndex));
+      Employee.compactSortIndices(employees);
       return employees;
     });
   }

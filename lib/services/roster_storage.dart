@@ -495,7 +495,12 @@ class RosterStorage {
     if (_useCloud && _uid != null) {
       try {
         final cloud = await _cloud.loadRoster(rosterName);
-        if (cloud.isNotEmpty) return cloud;
+        if (cloud.isNotEmpty) {
+          if (Employee.compactSortIndices(cloud)) {
+            unawaited(saveRoster(rosterName, cloud));
+          }
+          return cloud;
+        }
       } catch (e) {
         print('⚠️ Cloud loadRoster failed, using local: $e');
       }
@@ -581,9 +586,12 @@ class RosterStorage {
             .map((e) => Employee.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList();
         
-        // Sort by sortIndex to maintain insertion order
+        // Sort by sortIndex to maintain insertion order, then remove gaps (e.g. after deletes)
         employees.sort((a, b) => a.sortIndex.compareTo(b.sortIndex));
-        
+        if (Employee.compactSortIndices(employees)) {
+          unawaited(saveRoster(rosterName, employees));
+        }
+
         print('✅ Successfully loaded ${employees.length} employees');
         for (final emp in employees) {
           print('  - Employee: ${emp.name} (sortIndex=${emp.sortIndex}) with ${emp.shifts.length} shifts');

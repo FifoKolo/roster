@@ -2951,6 +2951,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     try {
       setState(() {
         _independentEmployees.removeWhere((emp) => emp.name == name);
+        Employee.compactSortIndices(_independentEmployees);
         print('Staff Management: Removed "$name" from ${widget.rosterName}');
         print(
             'Staff Management: Current staff count: ${_independentEmployees.length}');
@@ -3022,8 +3023,9 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                 List<Employee> employees =
                     employeesJson.map((e) => Employee.fromJson(e)).toList();
 
-                // Remove the employee
+                // Remove the employee and close gaps in numbering (sortIndex)
                 employees.removeWhere((emp) => emp.name == name);
+                Employee.compactSortIndices(employees);
                 data['employees'] = employees.map((e) => e.toJson()).toList();
                 await prefs.setString(weekKey, json.encode(data));
                 print('Staff Management: Removed "$name" from Week$weekNum');
