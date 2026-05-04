@@ -237,12 +237,28 @@ class Employee {
     return false;
   }
 
-  /// Fixes shuffled numbered names and gappy [sortIndex]. Returns true if anything changed.
-  static bool repairRosterRowOrder(List<Employee> employees) {
+  /// `Week 12`, `Week 12 2026`, etc. — rosters that use `N. Name` staff lines.
+  static bool isWeekStyleRosterName(String name) {
+    return RegExp(r'^Week \d+(?:\s+\d{4})?$', caseSensitive: false)
+        .hasMatch(name.trim());
+  }
+
+  /// Fixes shuffled numbered names and gappy [sortIndex]. For [week-style rosters](isWeekStyleRosterName),
+  /// also removes staff whose [name] has no leading number (e.g. plain "Kristina").
+  static bool repairRosterRowOrder(
+    List<Employee> employees, {
+    String? rosterName,
+  }) {
     if (employees.isEmpty) return false;
+    var changed = false;
+    if (rosterName != null && isWeekStyleRosterName(rosterName)) {
+      final before = employees.length;
+      employees.removeWhere((e) => parseLeadingStaffNumber(e.name) == null);
+      if (employees.length != before) changed = true;
+    }
     final r = reorderLeadingNumberedNamesInPlace(employees);
     final c = compactSortIndices(employees);
-    return r || c;
+    return changed || r || c;
   }
 
   double get totalWorkedHours {

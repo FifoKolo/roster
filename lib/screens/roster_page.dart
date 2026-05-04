@@ -64,7 +64,10 @@ class _RosterPageState extends State<RosterPage> {
       correctedEmployees = await _fixMissingAccumulatedValues(correctedEmployees);
 
       // Re-apply after all fixes (storage load runs earlier; these steps can reorder copies).
-      if (Employee.repairRosterRowOrder(correctedEmployees)) {
+      if (Employee.repairRosterRowOrder(
+        correctedEmployees,
+        rosterName: widget.rosterName,
+      )) {
         await RosterStorage.saveRoster(widget.rosterName, correctedEmployees);
       }
 

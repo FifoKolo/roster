@@ -190,7 +190,7 @@ class FirestoreService {
           .toList();
       
       employees.sort((a, b) => a.sortIndex.compareTo(b.sortIndex));
-      Employee.repairRosterRowOrder(employees);
+      Employee.repairRosterRowOrder(employees, rosterName: rosterName);
       return employees;
     } catch (e) {
       print('❌ Error loading roster: $e');
@@ -225,7 +225,7 @@ class FirestoreService {
           .toList();
       
       employees.sort((a, b) => a.sortIndex.compareTo(b.sortIndex));
-      Employee.repairRosterRowOrder(employees);
+      Employee.repairRosterRowOrder(employees, rosterName: rosterName);
       return employees;
     });
   }

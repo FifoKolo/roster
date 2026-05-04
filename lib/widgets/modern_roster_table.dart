@@ -12,12 +12,6 @@ import '../widgets/employee_profile_dialog.dart';
 import '../theme/app_theme.dart';
 import '../utils/responsive_helper.dart';
 
-/// Matches `Week 18` or `Week 18 2026` (optional year suffix).
-bool _isWeekStyleRosterName(String name) {
-  return RegExp(r'^Week \d+(?:\s+\d{4})?$', caseSensitive: false)
-      .hasMatch(name.trim());
-}
-
 class ModernRosterTable extends StatefulWidget {
   final List<Employee> employees;
   final Map<String, DateTime> weekDates;
@@ -94,14 +88,17 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
 
     // For week-specific rosters, create independent copies of employee data
     final isWeekSpecificRoster =
-        _isWeekStyleRosterName(widget.rosterName);
+        Employee.isWeekStyleRosterName(widget.rosterName);
     if (isWeekSpecificRoster) {
       _repairCacheKey = null;
       _independentEmployees = widget.employees.map((emp) {
         final empJson = emp.toJson();
         return Employee.fromJson(empJson);
       }).toList();
-      if (Employee.repairRosterRowOrder(_independentEmployees)) {
+      if (Employee.repairRosterRowOrder(
+        _independentEmployees,
+        rosterName: widget.rosterName,
+      )) {
         Future.microtask(() async {
           if (!mounted) return;
           await widget.onRosterChanged(List<Employee>.from(_independentEmployees));
@@ -112,12 +109,15 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
 
   // Get the appropriate employee list based on roster type
   List<Employee> _getEmployeeList() {
-    if (_isWeekStyleRosterName(widget.rosterName)) {
+    if (Employee.isWeekStyleRosterName(widget.rosterName)) {
       final key = _independentEmployees
           .map((e) => '${e.name}\x1f${e.sortIndex}')
           .join('|');
       if (key != _repairCacheKey) {
-        final changed = Employee.repairRosterRowOrder(_independentEmployees);
+        final changed = Employee.repairRosterRowOrder(
+          _independentEmployees,
+          rosterName: widget.rosterName,
+        );
         _repairCacheKey = _independentEmployees
             .map((e) => '${e.name}\x1f${e.sortIndex}')
             .join('|');
@@ -143,7 +143,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
 
     // Update independent employees when the widget updates
     final isWeekSpecificRoster =
-        _isWeekStyleRosterName(widget.rosterName);
+        Employee.isWeekStyleRosterName(widget.rosterName);
     if (isWeekSpecificRoster && widget.employees != oldWidget.employees) {
       setState(() {
         _repairCacheKey = null;
@@ -151,7 +151,10 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           final empJson = emp.toJson();
           return Employee.fromJson(empJson);
         }).toList();
-        if (Employee.repairRosterRowOrder(_independentEmployees)) {
+        if (Employee.repairRosterRowOrder(
+          _independentEmployees,
+          rosterName: widget.rosterName,
+        )) {
           Future.microtask(() async {
             if (!mounted) return;
             await widget.onRosterChanged(List<Employee>.from(_independentEmployees));
@@ -183,7 +186,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     // Removed emoji print statement
 
     final isWeekSpecificRoster =
-        _isWeekStyleRosterName(widget.rosterName);
+        Employee.isWeekStyleRosterName(widget.rosterName);
     if (isWeekSpecificRoster) {
       // For week-specific rosters, do NOT auto-save on dispose
       // This prevents race conditions during navigation
@@ -225,7 +228,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
 
     // Check if this is a week-specific roster (like "Week 45", "Week 46", etc.)
     final isWeekSpecificRoster =
-        _isWeekStyleRosterName(widget.rosterName);
+        Employee.isWeekStyleRosterName(widget.rosterName);
 
     if (isWeekSpecificRoster) {
       // For week-specific rosters, don't use weekly data system - just use the roster's data directly
@@ -258,7 +261,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
 
     // Check if this is a week-specific roster (like "Week 45", "Week 46", etc.)
     final isWeekSpecificRoster =
-        _isWeekStyleRosterName(widget.rosterName);
+        Employee.isWeekStyleRosterName(widget.rosterName);
 
     if (isWeekSpecificRoster) {
       // For week-specific rosters, save directly to roster storage instead of weekly data
@@ -472,7 +475,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     final isMobile = ResponsiveHelper.isMobile(context);
     // Check if this is a week-specific roster (like "Week 45", "Week 46", etc.)
     final isWeekSpecificRoster =
-        _isWeekStyleRosterName(widget.rosterName);
+        Employee.isWeekStyleRosterName(widget.rosterName);
 
     return Container(
       padding: EdgeInsets.symmetric(
@@ -2160,7 +2163,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   void _navigateWeek(int direction) {
     // Safety check: Week-specific rosters should never use this method
     final isWeekSpecificRoster =
-        _isWeekStyleRosterName(widget.rosterName);
+        Employee.isWeekStyleRosterName(widget.rosterName);
     if (isWeekSpecificRoster) {
       // Removed emoji print statement
       return;
@@ -2686,7 +2689,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   void _goToCurrentWeek() {
     // Safety check: Week-specific rosters should never use this method
     final isWeekSpecificRoster =
-        _isWeekStyleRosterName(widget.rosterName);
+        Employee.isWeekStyleRosterName(widget.rosterName);
     if (isWeekSpecificRoster) {
       // Removed emoji print statement
       return;
@@ -2993,7 +2996,10 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     try {
       setState(() {
         _independentEmployees.removeWhere((emp) => emp.name == name);
-        Employee.repairRosterRowOrder(_independentEmployees);
+        Employee.repairRosterRowOrder(
+          _independentEmployees,
+          rosterName: widget.rosterName,
+        );
         _repairCacheKey = null;
         print('Staff Management: Removed "$name" from ${widget.rosterName}');
         print(

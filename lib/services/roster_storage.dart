@@ -497,7 +497,7 @@ class RosterStorage {
         final cloud = await _cloud.loadRoster(rosterName);
         if (cloud.isNotEmpty) {
           cloud.sort((a, b) => a.sortIndex.compareTo(b.sortIndex));
-          if (Employee.repairRosterRowOrder(cloud)) {
+          if (Employee.repairRosterRowOrder(cloud, rosterName: rosterName)) {
             unawaited(saveRoster(rosterName, cloud));
           }
           return cloud;
@@ -587,7 +587,7 @@ class RosterStorage {
             .map((e) => Employee.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList();
         
-        if (Employee.repairRosterRowOrder(employees)) {
+        if (Employee.repairRosterRowOrder(employees, rosterName: rosterName)) {
           unawaited(saveRoster(rosterName, employees));
         }
 
