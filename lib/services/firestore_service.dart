@@ -189,10 +189,8 @@ class FirestoreService {
           .whereType<Employee>()
           .toList();
       
-      // Sort by sortIndex, fix "N. Name" row order, then close numbering gaps
       employees.sort((a, b) => a.sortIndex.compareTo(b.sortIndex));
-      Employee.reorderLeadingNumberedNamesInPlace(employees);
-      Employee.compactSortIndices(employees);
+      Employee.repairRosterRowOrder(employees);
       return employees;
     } catch (e) {
       print('❌ Error loading roster: $e');
@@ -226,10 +224,8 @@ class FirestoreService {
           .whereType<Employee>()
           .toList();
       
-      // Sort by sortIndex, fix "N. Name" row order, then close numbering gaps
       employees.sort((a, b) => a.sortIndex.compareTo(b.sortIndex));
-      Employee.reorderLeadingNumberedNamesInPlace(employees);
-      Employee.compactSortIndices(employees);
+      Employee.repairRosterRowOrder(employees);
       return employees;
     });
   }

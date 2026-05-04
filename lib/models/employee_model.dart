@@ -175,37 +175,58 @@ class Employee {
     return changed;
   }
 
-  static final RegExp _leadingStaffNumber = RegExp(r'^(\d+)\.');
+  /// Leading staff index typed into the display name: `1. Ana`, `2) Bob`, `3 Maria`.
+  static int? parseLeadingStaffNumber(String rawName) {
+    var s = rawName.trimLeft().replaceFirst(RegExp(r'^\uFEFF+'), '').trim();
+    if (s.isEmpty) return null;
+    final dotted = RegExp(r'^(\d+)\s*[.\uFF0E\)\u00B7]\s*').firstMatch(s);
+    if (dotted != null) return int.tryParse(dotted.group(1)!);
+    final spaced = RegExp(r'^(\d+)\s+(?=[A-Za-z\u00C0-\u024F])').firstMatch(s);
+    if (spaced != null) return int.tryParse(spaced.group(1)!);
+    return null;
+  }
 
-  /// Rows whose [name] starts with "N." (e.g. "3. Lana") are reordered by that
-  /// number; rows without that pattern keep their **row index** (fixes shuffled
-  /// lists when numbers were typed into the name).
+  /// Rows whose [name] starts with a leading staff number are reordered by that
+  /// value; other rows keep their **row index** (e.g. `K. Kristina` stays put).
   static bool reorderLeadingNumberedNamesInPlace(List<Employee> employees) {
     if (employees.length < 2) return false;
 
-    final isNumbered =
-        employees.map((e) => _leadingStaffNumber.hasMatch(e.name.trim())).toList();
-    if (!isNumbered.any((v) => v)) return false;
+    final keys = employees.map((e) => parseLeadingStaffNumber(e.name)).toList();
+    if (!keys.any((k) => k != null)) return false;
 
-    int leadingValue(Employee e) =>
-        int.parse(_leadingStaffNumber.firstMatch(e.name.trim())!.group(1)!);
-
-    final numberedSorted = <Employee>[
-      for (var i = 0; i < employees.length; i++)
-        if (isNumbered[i]) employees[i],
-    ]..sort((a, b) => leadingValue(a).compareTo(leadingValue(b)));
+    final numberedEntries = <({Employee emp, int key, int origIdx})>[];
+    for (var i = 0; i < employees.length; i++) {
+      final k = keys[i];
+      if (k != null) {
+        numberedEntries.add((emp: employees[i], key: k, origIdx: i));
+      }
+    }
+    numberedEntries.sort((a, b) {
+      final c = a.key.compareTo(b.key);
+      if (c != 0) return c;
+      return a.origIdx.compareTo(b.origIdx);
+    });
+    final numberedSorted = numberedEntries.map((e) => e.emp).toList();
 
     final namesBefore = employees.map((e) => e.name).toList();
-    var k = 0;
+    var n = 0;
     for (var i = 0; i < employees.length; i++) {
-      if (isNumbered[i]) {
-        employees[i] = numberedSorted[k++];
+      if (keys[i] != null) {
+        employees[i] = numberedSorted[n++];
       }
     }
     for (var i = 0; i < employees.length; i++) {
       if (namesBefore[i] != employees[i].name) return true;
     }
     return false;
+  }
+
+  /// Fixes shuffled numbered names and gappy [sortIndex]. Returns true if anything changed.
+  static bool repairRosterRowOrder(List<Employee> employees) {
+    if (employees.isEmpty) return false;
+    final r = reorderLeadingNumberedNamesInPlace(employees);
+    final c = compactSortIndices(employees);
+    return r || c;
   }
 
   double get totalWorkedHours {

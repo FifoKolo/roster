@@ -496,11 +496,8 @@ class RosterStorage {
       try {
         final cloud = await _cloud.loadRoster(rosterName);
         if (cloud.isNotEmpty) {
-          // Firestore docs are not in a guaranteed order; sort then align "N. Name" rows.
           cloud.sort((a, b) => a.sortIndex.compareTo(b.sortIndex));
-          final reordered = Employee.reorderLeadingNumberedNamesInPlace(cloud);
-          final indicesFixed = Employee.compactSortIndices(cloud);
-          if (reordered || indicesFixed) {
+          if (Employee.repairRosterRowOrder(cloud)) {
             unawaited(saveRoster(rosterName, cloud));
           }
           return cloud;
@@ -590,10 +587,7 @@ class RosterStorage {
             .map((e) => Employee.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList();
         
-        // Fix "1., 5., 2., …" name prefixes out of order; keep unnumbered rows fixed.
-        final reordered = Employee.reorderLeadingNumberedNamesInPlace(employees);
-        final indicesFixed = Employee.compactSortIndices(employees);
-        if (reordered || indicesFixed) {
+        if (Employee.repairRosterRowOrder(employees)) {
           unawaited(saveRoster(rosterName, employees));
         }
 

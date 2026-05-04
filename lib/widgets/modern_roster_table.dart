@@ -85,13 +85,16 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     final isWeekSpecificRoster =
         RegExp(r'^Week \d+$').hasMatch(widget.rosterName);
     if (isWeekSpecificRoster) {
-      // Removed emoji print statement
       _independentEmployees = widget.employees.map((emp) {
         final empJson = emp.toJson();
-        final newEmp = Employee.fromJson(empJson);
-        // Removed emoji print statement
-        return newEmp;
+        return Employee.fromJson(empJson);
       }).toList();
+      if (Employee.repairRosterRowOrder(_independentEmployees)) {
+        Future.microtask(() async {
+          if (!mounted) return;
+          await widget.onRosterChanged(List<Employee>.from(_independentEmployees));
+        });
+      }
     }
   }
 
@@ -113,9 +116,14 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
       setState(() {
         _independentEmployees = widget.employees.map((emp) {
           final empJson = emp.toJson();
-          final newEmp = Employee.fromJson(empJson);
-          return newEmp;
+          return Employee.fromJson(empJson);
         }).toList();
+        if (Employee.repairRosterRowOrder(_independentEmployees)) {
+          Future.microtask(() async {
+            if (!mounted) return;
+            await widget.onRosterChanged(List<Employee>.from(_independentEmployees));
+          });
+        }
       });
       print(
           '🔄 Updated independent employees: ${_independentEmployees.length}');
