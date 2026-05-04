@@ -162,17 +162,50 @@ class Employee {
   }) : shifts = shifts ?? {},
        documents = documents ?? [];
 
-  /// Renumbers [sortIndex] to 0…n−1 in stable order (by current sortIndex).
-  /// Returns true if any value changed (e.g. gaps after someone was removed).
+  /// Renumbers [sortIndex] to 0…n−1 **without changing list order** (fixes gaps
+  /// after deletes). Callers that load from unordered sources should [sort] by
+  /// [sortIndex] first, then call this.
   static bool compactSortIndices(List<Employee> employees) {
     if (employees.isEmpty) return false;
-    employees.sort((a, b) => a.sortIndex.compareTo(b.sortIndex));
     var changed = false;
     for (var i = 0; i < employees.length; i++) {
       if (employees[i].sortIndex != i) changed = true;
       employees[i].sortIndex = i;
     }
     return changed;
+  }
+
+  static final RegExp _leadingStaffNumber = RegExp(r'^(\d+)\.');
+
+  /// Rows whose [name] starts with "N." (e.g. "3. Lana") are reordered by that
+  /// number; rows without that pattern keep their **row index** (fixes shuffled
+  /// lists when numbers were typed into the name).
+  static bool reorderLeadingNumberedNamesInPlace(List<Employee> employees) {
+    if (employees.length < 2) return false;
+
+    final isNumbered =
+        employees.map((e) => _leadingStaffNumber.hasMatch(e.name.trim())).toList();
+    if (!isNumbered.any((v) => v)) return false;
+
+    int leadingValue(Employee e) =>
+        int.parse(_leadingStaffNumber.firstMatch(e.name.trim())!.group(1)!);
+
+    final numberedSorted = <Employee>[
+      for (var i = 0; i < employees.length; i++)
+        if (isNumbered[i]) employees[i],
+    ]..sort((a, b) => leadingValue(a).compareTo(leadingValue(b)));
+
+    final namesBefore = employees.map((e) => e.name).toList();
+    var k = 0;
+    for (var i = 0; i < employees.length; i++) {
+      if (isNumbered[i]) {
+        employees[i] = numberedSorted[k++];
+      }
+    }
+    for (var i = 0; i < employees.length; i++) {
+      if (namesBefore[i] != employees[i].name) return true;
+    }
+    return false;
   }
 
   double get totalWorkedHours {

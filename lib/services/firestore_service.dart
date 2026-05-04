@@ -189,8 +189,9 @@ class FirestoreService {
           .whereType<Employee>()
           .toList();
       
-      // Sort by sortIndex to maintain insertion order, then close numbering gaps
+      // Sort by sortIndex, fix "N. Name" row order, then close numbering gaps
       employees.sort((a, b) => a.sortIndex.compareTo(b.sortIndex));
+      Employee.reorderLeadingNumberedNamesInPlace(employees);
       Employee.compactSortIndices(employees);
       return employees;
     } catch (e) {
@@ -225,8 +226,9 @@ class FirestoreService {
           .whereType<Employee>()
           .toList();
       
-      // Sort by sortIndex to maintain insertion order, then close numbering gaps
+      // Sort by sortIndex, fix "N. Name" row order, then close numbering gaps
       employees.sort((a, b) => a.sortIndex.compareTo(b.sortIndex));
+      Employee.reorderLeadingNumberedNamesInPlace(employees);
       Employee.compactSortIndices(employees);
       return employees;
     });
