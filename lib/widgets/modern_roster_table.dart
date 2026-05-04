@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/employee_document.dart';
 import '../models/employee_model.dart';
 import '../services/irish_bank_holidays.dart';
 import '../services/roster_storage.dart';
@@ -54,11 +55,6 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   // Independent employee data for week-specific rosters
   List<Employee> _independentEmployees = [];
 
-  bool _orderSyncScheduled = false;
-
-  /// Cleared when [_independentEmployees] is replaced or repaired order may change.
-  String? _repairCacheKey;
-
   // Clipboard state for copy/paste functionality
   Shift? _clipboardShift;
 
@@ -90,46 +86,16 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     final isWeekSpecificRoster =
         Employee.isWeekStyleRosterName(widget.rosterName);
     if (isWeekSpecificRoster) {
-      _repairCacheKey = null;
       _independentEmployees = widget.employees.map((emp) {
         final empJson = emp.toJson();
         return Employee.fromJson(empJson);
       }).toList();
-      if (Employee.repairRosterRowOrder(
-        _independentEmployees,
-        rosterName: widget.rosterName,
-      )) {
-        Future.microtask(() async {
-          if (!mounted) return;
-          await widget.onRosterChanged(List<Employee>.from(_independentEmployees));
-        });
-      }
     }
   }
 
   // Get the appropriate employee list based on roster type
   List<Employee> _getEmployeeList() {
     if (Employee.isWeekStyleRosterName(widget.rosterName)) {
-      final key = _independentEmployees
-          .map((e) => '${e.name}\x1f${e.sortIndex}')
-          .join('|');
-      if (key != _repairCacheKey) {
-        final changed = Employee.repairRosterRowOrder(
-          _independentEmployees,
-          rosterName: widget.rosterName,
-        );
-        _repairCacheKey = _independentEmployees
-            .map((e) => '${e.name}\x1f${e.sortIndex}')
-            .join('|');
-        if (changed && !_orderSyncScheduled) {
-          _orderSyncScheduled = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _orderSyncScheduled = false;
-            if (!mounted) return;
-            widget.onRosterChanged(List<Employee>.from(_independentEmployees));
-          });
-        }
-      }
       return _independentEmployees;
     }
     final list = List<Employee>.from(widget.employees);
@@ -146,20 +112,10 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         Employee.isWeekStyleRosterName(widget.rosterName);
     if (isWeekSpecificRoster && widget.employees != oldWidget.employees) {
       setState(() {
-        _repairCacheKey = null;
         _independentEmployees = widget.employees.map((emp) {
           final empJson = emp.toJson();
           return Employee.fromJson(empJson);
         }).toList();
-        if (Employee.repairRosterRowOrder(
-          _independentEmployees,
-          rosterName: widget.rosterName,
-        )) {
-          Future.microtask(() async {
-            if (!mounted) return;
-            await widget.onRosterChanged(List<Employee>.from(_independentEmployees));
-          });
-        }
       });
       print(
           '🔄 Updated independent employees: ${_independentEmployees.length}');
@@ -1024,7 +980,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           Container(
             width: employeeNameWidth,
             padding: EdgeInsets.symmetric(vertical: isMobile ? 8 : 12),
-            child: _buildEmployeeInfo(employee),
+            child: _buildEmployeeInfo(employee, index),
           ),
 
           // Shift cells
@@ -1043,7 +999,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     );
   }
 
-  Widget _buildEmployeeInfo(Employee employee) {
+  Widget _buildEmployeeInfo(Employee employee, int index) {
     final isMobile = ResponsiveHelper.isMobile(context);
     final avatarRadius = isMobile ? 12.0 : 12.0;
     final nameFontSize = isMobile ? 12.0 : 14.0;
@@ -1059,7 +1015,9 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
               radius: avatarRadius,
               backgroundColor: _primaryBlue,
               child: Text(
-                employee.name.isNotEmpty ? employee.name[0].toUpperCase() : '?',
+                _displayStaffName(employee.name).isNotEmpty
+                    ? _displayStaffName(employee.name)[0].toUpperCase()
+                    : '?',
                 style: TextStyle(
                   color: _white,
                   fontSize: isMobile ? 10 : 12,
@@ -1073,7 +1031,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    employee.name,
+                    _displayStaffName(employee.name),
                     style: TextStyle(
                       fontSize: nameFontSize,
                       fontWeight: FontWeight.w500,
@@ -1092,6 +1050,44 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
                 ],
               ),
             ),
+            if (Employee.isWeekStyleRosterName(widget.rosterName))
+              SizedBox(
+                width: isMobile ? 30 : 24,
+                height: isMobile ? 30 : 24,
+                child: IconButton(
+                  onPressed: index > 0 ? () => _moveStaff(index, index - 1) : null,
+                  tooltip: 'Move up',
+                  icon: const Icon(Icons.keyboard_arrow_up),
+                  iconSize: isMobile ? 18 : 14,
+                  padding: EdgeInsets.zero,
+                ),
+              ),
+            if (Employee.isWeekStyleRosterName(widget.rosterName))
+              SizedBox(
+                width: isMobile ? 30 : 24,
+                height: isMobile ? 30 : 24,
+                child: IconButton(
+                  onPressed: () => _renameStaffMember(employee),
+                  tooltip: 'Rename',
+                  icon: const Icon(Icons.edit_outlined),
+                  iconSize: isMobile ? 16 : 13,
+                  padding: EdgeInsets.zero,
+                ),
+              ),
+            if (Employee.isWeekStyleRosterName(widget.rosterName))
+              SizedBox(
+                width: isMobile ? 30 : 24,
+                height: isMobile ? 30 : 24,
+                child: IconButton(
+                  onPressed: index < _independentEmployees.length - 1
+                      ? () => _moveStaff(index, index + 1)
+                      : null,
+                  tooltip: 'Move down',
+                  icon: const Icon(Icons.keyboard_arrow_down),
+                  iconSize: isMobile ? 18 : 14,
+                  padding: EdgeInsets.zero,
+                ),
+              ),
             // Larger mobile tap target for delete action
             SizedBox(
               width: isMobile ? 40 : 32,
@@ -1131,6 +1127,161 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
         ),
       ],
     );
+  }
+
+  Future<void> _moveStaff(int fromIndex, int toIndex) async {
+    setState(() {
+      final moved = _independentEmployees.removeAt(fromIndex);
+      _independentEmployees.insert(toIndex, moved);
+      Employee.compactSortIndices(_independentEmployees);
+    });
+    await _saveCurrentWeekData();
+    await _syncStaffOrderAcrossWeekRosters();
+  }
+
+  Future<void> _renameStaffMember(Employee employee) async {
+    final controller = TextEditingController(text: employee.name);
+    final String? updatedName = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rename Staff'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textInputAction: TextInputAction.done,
+          onSubmitted: (_) => Navigator.of(context).pop(controller.text.trim()),
+          decoration: const InputDecoration(
+            labelText: 'Staff Name',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    final newName = updatedName?.trim() ?? '';
+    if (newName.isEmpty || newName == employee.name) return;
+
+    final duplicate = _independentEmployees.any(
+      (e) => !identical(e, employee) && e.name.toLowerCase() == newName.toLowerCase(),
+    );
+    if (duplicate) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Staff member "$newName" already exists'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      final idx = _independentEmployees.indexOf(employee);
+      if (idx == -1) return;
+      _independentEmployees[idx] = Employee(
+        name: newName,
+        sortIndex: employee.sortIndex,
+        shifts: Map<String, Shift>.from(employee.shifts),
+        accumulatedWorkedHours: employee.accumulatedWorkedHours,
+        accumulatedTotalHours: employee.accumulatedTotalHours,
+        accumulatedHolidayHours: employee.accumulatedHolidayHours,
+        accumulatedHolidayHoursUsed: employee.accumulatedHolidayHoursUsed,
+        accumulatedHolidayHoursEarned: employee.accumulatedHolidayHoursEarned,
+        employeeColor: employee.employeeColor,
+        rosterStartDate: employee.rosterStartDate,
+        rosterEndDate: employee.rosterEndDate,
+        customAccumulatedHours: employee.customAccumulatedHours,
+        customHolidayHours: employee.customHolidayHours,
+        email: employee.email,
+        contractType: employee.contractType,
+        contractPdfPath: employee.contractPdfPath,
+        contractPdfName: employee.contractPdfName,
+        contractPdfBase64: employee.contractPdfBase64,
+        documents: List<EmployeeDocument>.from(employee.documents),
+      );
+    });
+    await _saveCurrentWeekData();
+  }
+
+  String _displayStaffName(String rawName) {
+    final normalized = Employee.normalizeStaffNameForLeadingNumber(rawName);
+    return normalized
+        .replaceFirst(RegExp(r'^\d+\s*[.\uFF0E\)\u00B7]?\s*'), '')
+        .trim();
+  }
+
+  /// Keep staff row positioning consistent across all week rosters.
+  /// Uses current roster order as the source of truth.
+  Future<void> _syncStaffOrderAcrossWeekRosters() async {
+    try {
+      final desiredOrder = _independentEmployees.map((e) => e.name).toList();
+      if (desiredOrder.isEmpty) return;
+
+      final prefs = await SharedPreferences.getInstance();
+      final weekRosterNames = <String>{};
+
+      // Include cloud/local roster names from storage service.
+      try {
+        final names = await RosterStorage.watchRosterNames().first;
+        weekRosterNames.addAll(
+          names.where((name) => Employee.isWeekStyleRosterName(name)),
+        );
+      } catch (_) {
+        // Fall back to local key scan below.
+      }
+
+      // Include any local-only week rosters not currently in the name stream.
+      weekRosterNames.addAll(
+        prefs
+            .getKeys()
+            .where((k) => k.startsWith('roster_Week'))
+            .map((k) => k.substring('roster_'.length)),
+      );
+
+      for (final rosterName in weekRosterNames) {
+        try {
+          final employees = await RosterStorage.loadRoster(rosterName);
+          if (employees.isEmpty) continue;
+
+          final beforeSignature = employees
+              .map((e) => '${e.name}\x1f${e.sortIndex}')
+              .join('|');
+
+          // Sort by desired order; unknown names keep relative order at the end.
+          employees.sort((a, b) {
+            final ai = desiredOrder.indexOf(a.name);
+            final bi = desiredOrder.indexOf(b.name);
+            final aRank = ai == -1 ? desiredOrder.length + a.sortIndex : ai;
+            final bRank = bi == -1 ? desiredOrder.length + b.sortIndex : bi;
+            return aRank.compareTo(bRank);
+          });
+          Employee.compactSortIndices(employees);
+
+          final afterSignature = employees
+              .map((e) => '${e.name}\x1f${e.sortIndex}')
+              .join('|');
+          if (afterSignature != beforeSignature) {
+            await RosterStorage.saveRoster(rosterName, employees);
+          }
+        } catch (_) {
+          // Skip individual rosters without interrupting user flow.
+          continue;
+        }
+      }
+    } catch (e) {
+      print('Staff order sync error: $e');
+    }
   }
 
   void _confirmDeleteShift(Employee employee, String day, Shift shift) {
@@ -2908,7 +3059,6 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           name: name,
           sortIndex: _independentEmployees.length,
         ));
-        _repairCacheKey = null;
         print('Staff Management: Added "$name" to ${widget.rosterName}');
         print(
             'Staff Management: Current staff count: ${_independentEmployees.length}');
@@ -2996,11 +3146,7 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
     try {
       setState(() {
         _independentEmployees.removeWhere((emp) => emp.name == name);
-        Employee.repairRosterRowOrder(
-          _independentEmployees,
-          rosterName: widget.rosterName,
-        );
-        _repairCacheKey = null;
+        Employee.compactSortIndices(_independentEmployees);
         print('Staff Management: Removed "$name" from ${widget.rosterName}');
         print(
             'Staff Management: Current staff count: ${_independentEmployees.length}');

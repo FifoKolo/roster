@@ -243,22 +243,16 @@ class Employee {
         .hasMatch(name.trim());
   }
 
-  /// Fixes shuffled numbered names and gappy [sortIndex]. For [week-style rosters](isWeekStyleRosterName),
-  /// also removes staff whose [name] has no leading number (e.g. plain "Kristina").
+  /// Keeps persisted order stable by only compacting [sortIndex] gaps.
+  ///
+  /// Manual naming and positioning are user-controlled, so we intentionally do
+  /// not auto-reorder by name prefix or auto-delete any entries here.
   static bool repairRosterRowOrder(
     List<Employee> employees, {
     String? rosterName,
   }) {
     if (employees.isEmpty) return false;
-    var changed = false;
-    if (rosterName != null && isWeekStyleRosterName(rosterName)) {
-      final before = employees.length;
-      employees.removeWhere((e) => parseLeadingStaffNumber(e.name) == null);
-      if (employees.length != before) changed = true;
-    }
-    final r = reorderLeadingNumberedNamesInPlace(employees);
-    final c = compactSortIndices(employees);
-    return changed || r || c;
+    return compactSortIndices(employees);
   }
 
   double get totalWorkedHours {
