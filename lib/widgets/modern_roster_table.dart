@@ -1225,8 +1225,11 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
   /// Uses current roster order as the source of truth.
   Future<void> _syncStaffOrderAcrossWeekRosters() async {
     try {
-      final desiredOrder = _independentEmployees.map((e) => e.name).toList();
-      if (desiredOrder.isEmpty) return;
+      final desiredOrderKeys = _independentEmployees
+          .map((e) => Employee.canonicalStaffKey(e.name))
+          .where((k) => k.isNotEmpty)
+          .toList();
+      if (desiredOrderKeys.isEmpty) return;
 
       final prefs = await SharedPreferences.getInstance();
       final weekRosterNames = <String>{};
@@ -1254,16 +1257,21 @@ class _ModernRosterTableState extends State<ModernRosterTable> {
           final employees = await RosterStorage.loadRoster(rosterName);
           if (employees.isEmpty) continue;
 
+          // Prevent duplicates from propagating across weeks.
+          Employee.repairRosterRowOrder(employees, rosterName: rosterName);
+
           final beforeSignature = employees
               .map((e) => '${e.name}\x1f${e.sortIndex}')
               .join('|');
 
           // Sort by desired order; unknown names keep relative order at the end.
           employees.sort((a, b) {
-            final ai = desiredOrder.indexOf(a.name);
-            final bi = desiredOrder.indexOf(b.name);
-            final aRank = ai == -1 ? desiredOrder.length + a.sortIndex : ai;
-            final bRank = bi == -1 ? desiredOrder.length + b.sortIndex : bi;
+            final ai =
+                desiredOrderKeys.indexOf(Employee.canonicalStaffKey(a.name));
+            final bi =
+                desiredOrderKeys.indexOf(Employee.canonicalStaffKey(b.name));
+            final aRank = ai == -1 ? desiredOrderKeys.length + a.sortIndex : ai;
+            final bRank = bi == -1 ? desiredOrderKeys.length + b.sortIndex : bi;
             return aRank.compareTo(bRank);
           });
           Employee.compactSortIndices(employees);

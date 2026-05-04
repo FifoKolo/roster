@@ -191,6 +191,24 @@ class Employee {
     return buf.toString();
   }
 
+  /// Canonical identity used for de-duplication (ignores leading numbering).
+  static String canonicalStaffKey(String rawName) {
+    final normalized = normalizeStaffNameForLeadingNumber(rawName);
+    final stripped = normalized
+        .replaceFirst(RegExp(r'^\d+\s*[.\uFF0E\)\u00B7]?\s*'), '')
+        .trim()
+        .toLowerCase();
+    return stripped;
+  }
+
+  /// Removes legacy leading numbering from display names.
+  static String stripLegacyStaffPrefix(String rawName) {
+    final normalized = normalizeStaffNameForLeadingNumber(rawName);
+    return normalized
+        .replaceFirst(RegExp(r'^\d+\s*[.\uFF0E\)\u00B7]?\s*'), '')
+        .trim();
+  }
+
   /// Leading staff index typed into the display name: `1. Ana`, `2) Bob`, `3 Maria`.
   static int? parseLeadingStaffNumber(String rawName) {
     var s = normalizeStaffNameForLeadingNumber(rawName);
@@ -252,7 +270,53 @@ class Employee {
     String? rosterName,
   }) {
     if (employees.isEmpty) return false;
-    return compactSortIndices(employees);
+    final beforeCount = employees.length;
+    var renamed = false;
+
+    // One-time cleanup: strip old numbering prefixes from stored names.
+    for (var i = 0; i < employees.length; i++) {
+      final cleaned = stripLegacyStaffPrefix(employees[i].name);
+      if (cleaned.isNotEmpty && cleaned != employees[i].name) {
+        final e = employees[i];
+        employees[i] = Employee(
+          name: cleaned,
+          sortIndex: e.sortIndex,
+          shifts: Map<String, Shift>.from(e.shifts),
+          accumulatedWorkedHours: e.accumulatedWorkedHours,
+          accumulatedTotalHours: e.accumulatedTotalHours,
+          accumulatedHolidayHours: e.accumulatedHolidayHours,
+          accumulatedHolidayHoursUsed: e.accumulatedHolidayHoursUsed,
+          accumulatedHolidayHoursEarned: e.accumulatedHolidayHoursEarned,
+          employeeColor: e.employeeColor,
+          rosterStartDate: e.rosterStartDate,
+          rosterEndDate: e.rosterEndDate,
+          email: e.email,
+          contractType: e.contractType,
+          contractPdfPath: e.contractPdfPath,
+          contractPdfName: e.contractPdfName,
+          contractPdfBase64: e.contractPdfBase64,
+          customAccumulatedHours: e.customAccumulatedHours,
+          customHolidayHours: e.customHolidayHours,
+          documents: List<EmployeeDocument>.from(e.documents),
+        );
+        renamed = true;
+      }
+    }
+
+    // Remove accidental duplicates (same staff with different numbering prefix).
+    final seen = <String>{};
+    employees.removeWhere((e) {
+      final key = canonicalStaffKey(e.name);
+      if (key.isEmpty) return false;
+      if (seen.contains(key)) return true;
+      seen.add(key);
+      return false;
+    });
+
+    final changed = employees.length != beforeCount;
+
+    final compacted = compactSortIndices(employees);
+    return renamed || changed || compacted;
   }
 
   double get totalWorkedHours {
