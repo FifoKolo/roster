@@ -175,9 +175,25 @@ class Employee {
     return changed;
   }
 
+  /// Normalizes fullwidth digits (common when copying from Excel) for parsing.
+  static String normalizeStaffNameForLeadingNumber(String rawName) {
+    final trimmed =
+        rawName.trimLeft().replaceFirst(RegExp(r'^\uFEFF+'), '').trim();
+    if (trimmed.isEmpty) return trimmed;
+    final buf = StringBuffer();
+    for (final ch in trimmed.runes) {
+      if (ch >= 0xFF10 && ch <= 0xFF19) {
+        buf.writeCharCode(ch - 0xFF10 + 0x30);
+      } else {
+        buf.writeCharCode(ch);
+      }
+    }
+    return buf.toString();
+  }
+
   /// Leading staff index typed into the display name: `1. Ana`, `2) Bob`, `3 Maria`.
   static int? parseLeadingStaffNumber(String rawName) {
-    var s = rawName.trimLeft().replaceFirst(RegExp(r'^\uFEFF+'), '').trim();
+    var s = normalizeStaffNameForLeadingNumber(rawName);
     if (s.isEmpty) return null;
     final dotted = RegExp(r'^(\d+)\s*[.\uFF0E\)\u00B7]\s*').firstMatch(s);
     if (dotted != null) return int.tryParse(dotted.group(1)!);
